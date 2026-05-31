@@ -1,0 +1,452 @@
+import os
+import uuid
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+from fastapi import FastAPI, Depends, File, Form, UploadFile, Header
+import logging
+from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
+from typing import List, Optional
+
+from database.connection import get_db, create_tables
+from database.models import TouristObject, User, Visit
+from app import schemas
+from app.auth import get_current_user, verify_firebase_token
+from app.translations import get_text, localize_tourist_object, localize_visit
+from app.vision_service import (
+    VisionServiceError,
+    analyze_image,
+    choose_best_match,
+    distance_meters,
+    effective_radius,
+    is_ai_match_success,
+    nearby_objects,
+)
+from fastapi import HTTPException, status
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
+logger = logging.getLogger(__name__)
+POINTS_PER_VISIT = 10
+MAX_IMAGE_BYTES = 8 * 1024 * 1024
+
+create_tables()
+
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+app = FastAPI(
+    title="Vision100 API",
+    description="API за интелигентна мобилна система за дигитализация на 100-те национални туристически обекта.",
+    version="1.0.0"
+)
+
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+@app.get("/health", tags=["System"])
+def health_check(accept_language: Optional[str] = Header(None)):
+    """Проверка дали сървърът работи."""
+    logger.info("Health check requested")
+    return {"status": "ok", "message": get_text(accept_language, "health_ok")}
+
+@app.get("/api/objects", response_model=List[schemas.TouristObjectResponse], tags=["Tourist Objects"])
+def get_tourist_objects(skip: int = 0, limit: int = 250, db: Session = Depends(get_db), accept_language: Optional[str] = Header(None)):
+    """Връща списък с всички туристически обекти."""
+    logger.info("Fetching tourist objects. skip=%s limit=%s", skip, limit)
+    logger.info("Accept-Language header: %s", accept_language)
+    objects = db.query(TouristObject).offset(skip).limit(limit).all()
+    logger.info("Fetched tourist objects count=%s", len(objects))
+    from app.translations import localize_tourist_object
+    return [localize_tourist_object(obj, accept_language) for obj in objects]
+
+
+@app.get("/api/visits/{visit_id}/photo", tags=["Visits"])
+def get_visit_photo(
+    visit_id: int, 
+    db: Session = Depends(get_db),
+    accept_language: Optional[str] = Header(None)
+):
+    """Връща реалната снимка (бинарния файл) за дадено посещение."""
+    visit = db.query(Visit).filter(Visit.id == visit_id).first()
+    if not visit or not visit.photo_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=get_text(accept_language, "photo_not_found")
+        )
+    
+    file_path = visit.photo_url.lstrip("/")
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=get_text(accept_language, "photo_missing_disk")
+        )
+        
+    return FileResponse(file_path)
+
+@app.post("/api/checkins/verify", response_model=schemas.CheckInResponse, tags=["Check-in"])
+async def verify_check_in(
+    photo: UploadFile = File(...),
+    latitude: float = Form(...),
+    longitude: float = Form(...),
+    gps_accuracy: Optional[float] = Form(None),
+    object_id: Optional[int] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    accept_language: Optional[str] = Header(None),
+):
+    if not photo.content_type or not photo.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=get_text(accept_language, "photo_must_be_image"),
+        )
+
+    image_bytes = await photo.read()
+    if not image_bytes:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=get_text(accept_language, "photo_empty"))
+
+    logger.info("Check-in initiated. user_id=%s lat=%s lon=%s image_size_bytes=%s", current_user.id, latitude, longitude, len(image_bytes))
+
+    if len(image_bytes) > MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=get_text(accept_language, "photo_too_large", max_size=MAX_IMAGE_BYTES // (1024 * 1024)),
+        )
+
+    file_extension = ".jpg"
+    if photo.filename and "." in photo.filename:
+        file_extension = f".{photo.filename.split('.')[-1]}"
+    saved_filename = f"{uuid.uuid4().hex}{file_extension}"
+    file_path = os.path.join(UPLOAD_DIR, saved_filename)
+    with open(file_path, "wb") as f:
+        f.write(image_bytes)
+        
+    photo_url_path = f"/uploads/{saved_filename}"
+
+    if object_id is not None:
+        tourist_object = db.query(TouristObject).filter(TouristObject.id == object_id).first()
+        if not tourist_object:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=get_text(accept_language, "tourist_object_not_found"))
+        distance = distance_meters(latitude, longitude, tourist_object.latitude, tourist_object.longitude)
+        candidates = (
+            [(tourist_object, distance)]
+            if distance <= effective_radius(tourist_object, gps_accuracy)
+            else []
+        )
+        candidate_for_response = tourist_object
+        distance_for_response = distance
+        radius_for_response = effective_radius(tourist_object, gps_accuracy)
+    else:
+        all_objects = db.query(TouristObject).all()
+        candidates = nearby_objects(all_objects, latitude, longitude, gps_accuracy)
+        candidate_for_response = candidates[0][0] if candidates else None
+        distance_for_response = candidates[0][1] if candidates else None
+        radius_for_response = (
+            effective_radius(candidates[0][0], gps_accuracy)
+            if candidates
+            else None
+        )
+
+    logger.info("GPS candidates found: %s", len(candidates))
+
+    if not candidates:
+        logger.info(
+            "Check-in rejected by GPS. user_id=%s object_id=%s lat=%s lon=%s",
+            current_user.id,
+            object_id,
+            latitude,
+            longitude,
+        )
+        
+        if candidate_for_response:
+            visit = Visit(
+                user_id=current_user.id,
+                object_id=candidate_for_response.id,
+                latitude=latitude,
+                longitude=longitude,
+                gps_accuracy=gps_accuracy,
+                photo_url=photo_url_path,
+                is_verified=False,
+            )
+            db.add(visit)
+            db.commit()
+
+        return schemas.CheckInResponse(
+            verified=False,
+            reason=get_text(accept_language, "gps_outside_radius"),
+            object=localize_tourist_object(candidate_for_response, accept_language) if candidate_for_response else None,
+            total_points=current_user.total_points,
+            distance_meters=distance_for_response,
+            effective_radius_meters=radius_for_response,
+        )
+
+    try:
+        logger.info("Sending photo to Vision API for analysis...")
+        detections = analyze_image(image_bytes, filename=photo.filename)
+        logger.info("Vision API successfully returned %s preliminary detections.", len(detections))
+    except VisionServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=get_text(accept_language, "vision_service_error"))
+
+    detection_response = [
+        schemas.AIDetectionResponse(label=item.label, score=item.score, source=item.source)
+        for item in detections[:10]
+    ]
+
+    if not detections:
+        if candidate_for_response:
+            visit = Visit(
+                user_id=current_user.id,
+                object_id=candidate_for_response.id,
+                latitude=latitude,
+                longitude=longitude,
+                gps_accuracy=gps_accuracy,
+                photo_url=photo_url_path,
+                is_verified=False,
+            )
+            db.add(visit)
+            db.commit()
+
+        return schemas.CheckInResponse(
+            verified=False,
+            reason=get_text(accept_language, "ai_no_useful_labels"),
+            object=localize_tourist_object(candidate_for_response, accept_language) if candidate_for_response else None,
+            total_points=current_user.total_points,
+            distance_meters=distance_for_response,
+            effective_radius_meters=radius_for_response,
+            detections=detection_response,
+        )
+
+    best_match = choose_best_match(candidates, detections)
+    if best_match is None or not is_ai_match_success(best_match):
+        logger.info(
+            "Check-in rejected by AI. user_id=%s object_id=%s best_detection=%s match_score=%s confidence=%s",
+            current_user.id,
+            object_id,
+            best_match.matched_detection if best_match else None,
+            best_match.match_score if best_match else None,
+            best_match.ai_confidence if best_match else None,
+        )
+        t_obj = best_match.tourist_object if best_match else candidate_for_response
+        
+        if t_obj:
+            visit = Visit(
+                user_id=current_user.id,
+                object_id=t_obj.id,
+                latitude=latitude,
+                longitude=longitude,
+                gps_accuracy=gps_accuracy,
+                photo_url=photo_url_path,
+                ai_confidence=best_match.ai_confidence if best_match else None,
+                ai_matched_label=best_match.matched_detection if best_match else None,
+                is_verified=False,
+            )
+            db.add(visit)
+            db.commit()
+
+        return schemas.CheckInResponse(
+            verified=False,
+            reason=get_text(accept_language, "ai_not_match"),
+            object=localize_tourist_object(t_obj, accept_language) if t_obj else None,
+            total_points=current_user.total_points,
+            distance_meters=best_match.distance_meters if best_match else distance_for_response,
+            effective_radius_meters=(
+                effective_radius(best_match.tourist_object, gps_accuracy)
+                if best_match
+                else radius_for_response
+            ),
+            ai_confidence=best_match.ai_confidence if best_match else None,
+            ai_match_score=best_match.match_score if best_match else None,
+            ai_matched_label=best_match.matched_label if best_match else None,
+            ai_detected_label=best_match.matched_detection if best_match else None,
+            detections=detection_response,
+        )
+
+    tourist_object = best_match.tourist_object
+    existing_visit = (
+        db.query(Visit)
+        .filter(Visit.user_id == current_user.id, Visit.object_id == tourist_object.id)
+        .first()
+    )
+
+    if existing_visit and existing_visit.is_verified:
+        logger.info("Check-in verified: user_id=%s already has points for object_id=%s.", current_user.id, tourist_object.id)
+        return schemas.CheckInResponse(
+            verified=True,
+            reason=get_text(accept_language, "already_verified"),
+            object=localize_tourist_object(tourist_object, accept_language),
+            visit=localize_visit(existing_visit, accept_language),
+            already_visited=True,
+            points_awarded=0,
+            total_points=current_user.total_points,
+            distance_meters=best_match.distance_meters,
+            effective_radius_meters=effective_radius(tourist_object, gps_accuracy),
+            ai_confidence=best_match.ai_confidence,
+            ai_match_score=best_match.match_score,
+            ai_matched_label=best_match.matched_label,
+            ai_detected_label=best_match.matched_detection,
+            detections=detection_response,
+        )
+
+    if existing_visit:
+        visit = existing_visit
+        visit.latitude = latitude
+        visit.longitude = longitude
+        visit.gps_accuracy = gps_accuracy
+        visit.ai_confidence = best_match.ai_confidence
+        visit.ai_matched_label = best_match.matched_detection
+        visit.photo_url = photo_url_path
+        visit.is_verified = True
+        visit.points_awarded = POINTS_PER_VISIT
+    else:
+        visit = Visit(
+            user_id=current_user.id,
+            object_id=tourist_object.id,
+            latitude=latitude,
+            longitude=longitude,
+            gps_accuracy=gps_accuracy,
+            ai_confidence=best_match.ai_confidence,
+            ai_matched_label=best_match.matched_detection,
+            photo_url=photo_url_path,
+            is_verified=True,
+            points_awarded=POINTS_PER_VISIT,
+        )
+        db.add(visit)
+
+    current_user.total_points += POINTS_PER_VISIT
+    db.commit()
+    db.refresh(visit)
+    db.refresh(current_user)
+
+    logger.info(
+        "Check-in verified. user_id=%s object_id=%s points=%s total_points=%s",
+        current_user.id,
+        tourist_object.id,
+        POINTS_PER_VISIT,
+        current_user.total_points,
+    )
+    return schemas.CheckInResponse(
+        verified=True,
+        reason=get_text(accept_language, "visit_verified"),
+        object=localize_tourist_object(tourist_object, accept_language),
+        visit=localize_visit(visit, accept_language),
+        already_visited=False,
+        points_awarded=POINTS_PER_VISIT,
+        total_points=current_user.total_points,
+        distance_meters=best_match.distance_meters,
+        effective_radius_meters=effective_radius(tourist_object, gps_accuracy),
+        ai_confidence=best_match.ai_confidence,
+        ai_match_score=best_match.match_score,
+        ai_matched_label=best_match.matched_label,
+        ai_detected_label=best_match.matched_detection,
+        detections=detection_response,
+    )
+
+
+@app.get("/api/visits/me", response_model=List[schemas.VisitResponse], tags=["Visits"])
+def get_my_visits(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    accept_language: Optional[str] = Header(None)
+):
+    visits = (
+        db.query(Visit)
+        .filter(Visit.user_id == current_user.id, Visit.is_verified.is_(True))
+        .order_by(Visit.visited_at.desc())
+        .all()
+    )
+    return [localize_visit(visit, accept_language) for visit in visits]
+
+
+@app.get("/api/leaderboard", response_model=List[schemas.LeaderboardUser], tags=["Users"])
+def get_leaderboard(limit: int = 50, db: Session = Depends(get_db)):
+    limit = max(1, min(limit, 100))
+    return db.query(User).order_by(User.total_points.desc(), User.display_name.asc()).limit(limit).all()
+
+
+@app.post("/api/auth/sync", response_model=schemas.UserResponse, tags=["Auth"])
+def sync_user(
+    user_data: schemas.UserSync,
+    token_data: dict = Depends(verify_firebase_token),
+    db: Session = Depends(get_db)
+):
+    uid = token_data.get("uid")
+    email = token_data.get("email")
+    logger.info("Sync requested. uid=%s email=%s display_name=%s avatar_present=%s", uid, email, user_data.display_name, bool(user_data.avatar_url))
+    
+    user = db.query(User).filter(User.firebase_uid == uid).first()
+    
+    if user:
+        logger.info("Existing user found. user_id=%s display_name=%s last_login will be updated", user.id, user.display_name)
+        user.last_login = func.now()
+        if user_data.avatar_url:
+            user.avatar_url = user_data.avatar_url
+    else:
+        requested_name = user_data.display_name
+        final_name = requested_name or token_data.get("name", "Unknown User")
+        logger.info("Creating new user. requested_name=%s google_name=%s", requested_name, token_data.get("name"))
+        
+        if requested_name:
+            if db.query(User).filter(User.display_name == final_name).first():
+                logger.warning("Requested display_name already taken. display_name=%s", final_name)
+                try:
+                    from firebase_admin import auth
+                    auth.delete_user(uid)
+                    logger.info("Deleted user %s from Firebase Auth due to registration failure.", uid)
+                except Exception as e:
+                    logger.error("Failed to delete user %s from Firebase Auth: %s", uid, e)
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username is already taken. Please choose another one.")
+        else:
+            base_name = final_name
+            counter = 1
+            while db.query(User).filter(User.display_name == final_name).first():
+                logger.info("Auto-adjusting Google display_name because it is taken. current_name=%s", final_name)
+                final_name = f"{base_name} {counter}"
+                counter += 1
+
+        final_avatar = user_data.avatar_url or token_data.get("picture", "")
+        
+        user = User(
+            firebase_uid=uid,
+            email=email,
+            display_name=final_name,
+            avatar_url=final_avatar,
+            last_login=func.now()
+        )
+        db.add(user)
+    
+    db.commit()
+    db.refresh(user)
+    logger.info("Sync completed successfully. user_id=%s display_name=%s last_login=%s", user.id, user.display_name, user.last_login)
+    
+    return user
+
+
+@app.get("/api/users/me", response_model=schemas.UserResponse, tags=["Users"])
+def get_current_user_info(current_user: User = Depends(get_current_user)):
+    logger.info("/api/users/me requested. user_id=%s display_name=%s", current_user.id, current_user.display_name)
+    return current_user
+
+@app.put("/api/users/me/name", response_model=schemas.UserResponse, tags=["Users"])
+def update_username(
+    name_data: schemas.UserNameUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    new_name = name_data.display_name.strip()
+    logger.info("Username update requested. user_id=%s old_name=%s new_name=%s", current_user.id, current_user.display_name, new_name)
+    
+    if new_name == current_user.display_name:
+        logger.info("Username update skipped because name is unchanged. user_id=%s", current_user.id)
+        return current_user
+        
+    name_exists = db.query(User).filter(User.display_name == new_name).first()
+    if name_exists:
+        logger.warning("Username update rejected because name is taken. new_name=%s", new_name)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This username is already taken.")
+        
+    current_user.display_name = new_name
+    db.commit()
+    db.refresh(current_user)
+    logger.info("Username updated successfully. user_id=%s new_name=%s", current_user.id, current_user.display_name)
+    
+    return current_user

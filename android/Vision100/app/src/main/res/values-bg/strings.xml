@@ -1,0 +1,100 @@
+<resources>
+    <string name="app_name">Vision100</string>
+
+    <!-- Auth -->
+    <string name="login_title">Добре дошли във Vision100</string>
+    <string name="login_subtitle">Моля, влезте, за да продължите</string>
+    <string name="email_label">Имейл</string>
+    <string name="password_label">Парола</string>
+    <string name="login_button">Вход</string>
+    <string name="register_link">Нямате акаунт? Регистрирайте се</string>
+    <string name="google_sign_in">Вход с Google</string>
+    <string name="forgot_password">Забравена парола?</string>
+    <string name="reset_password_title">Възстановяване на парола</string>
+    <string name="reset_password_description">Въведете имейла си и ще ви изпратим линк за възстановяване на паролата.</string>
+    <string name="send_reset_email">Изпрати имейл</string>
+    <string name="password_reset_email_sent">Изпратен е имейл за възстановяване на парола.</string>
+    <string name="enter_email_for_reset">Първо въведете имейл.</string>
+    <string name="register_title">Създаване на профил</string>
+    <string name="register_subtitle">Присъединете се към Vision100</string>
+    <string name="username_label">Потребителско име</string>
+    <string name="confirm_password_label">Потвърди парола</string>
+    <string name="register_button">Регистрация</string>
+    <string name="login_link">Вече имате акаунт? Влезте</string>
+    <string name="passwords_mismatch">Паролите не съвпадат</string>
+    <string name="google_signin_cancelled">Влизането с Google е отказано</string>
+
+    <!-- Home -->
+    <string name="home_subtitle">100-те национални туристически обекта</string>
+    <string name="smart_check_in">Умно отбеляване на обект</string>
+    <string name="tourist_objects">Туристически обекти</string>
+    <string name="leaderboard">Класация</string>
+
+    <!-- Profile -->
+    <string name="profile_title">Моят профил</string>
+    <string name="total_points">Общо точки</string>
+    <string name="my_progress">Моят прогрес</string>
+    <string name="logout">Изход</string>
+    <string name="change_nickname">Смяна на името</string>
+    <string name="enter_new_name">Въведете ново име</string>
+    <string name="save">Запази</string>
+    <string name="cancel">Отказ</string>
+    <string name="change_nickname_dialog_title">Промяна на псевдоним</string>
+    <string name="change_password">Смяна на парола</string>
+    <string name="current_password">Текуща парола</string>
+    <string name="new_password">Нова парола</string>
+    <string name="confirm_new_password">Потвърди новата парола</string>
+    <string name="password_changed_successfully">Паролата е сменена успешно.</string>
+    <string name="password_too_short">Паролата трябва да е поне 6 символа.</string>
+
+    <!-- Objects -->
+    <string name="search_objects">Търсене на обекти</string>
+    <string name="list_view">Списък</string>
+    <string name="map_view">Карта</string>
+    <string name="region_filter">Регион</string>
+    <string name="category_filter">Категория</string>
+    <string name="all_regions">Всички региони</string>
+    <string name="all_categories">Всички категории</string>
+    <string name="clear_filters">Изчисти филтрите</string>
+    <string name="no_objects_found">Няма обекти, които съвпадат с филтрите.</string>
+    <string name="objects_count">%1$d обекта</string>
+    <string name="my_location">Моето местоположение</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Настройки</string>
+    <string name="language">Език</string>
+    <string name="select_language">Избор на език</string>
+    <string name="bulgarian">Български</string>
+    <string name="english">Английски</string>
+
+    <!-- History -->
+    <string name="visited_on">Посетено на: %1$s</string>
+    <string name="pts_earned">%1$d спечелени точки</string>
+    <string name="pts_awarded">%1$d спечелени точки</string>
+    <string name="photo_saved">Снимката е запазена</string>
+    <string name="no_visits_yet">Все още нямате посещения. Започнете да изследвате!</string>
+
+    <!-- Check-in -->
+    <string name="gps_error">Неуспешно взимане на GPS локация. Моля, проверете настройките си.</string>
+    <string name="verification_failed_prefix">Верификацията не сполучи: %1$s</string>
+    <string name="checkin_success_title">Успешно отбелязване!</string>
+    <string name="checkin_fail_title">Верификацията е неуспешна</string>
+    <string name="points_awarded_label">Спечелени точки: %1$d</string>
+    <string name="object_label">Обект: %1$s</string>
+    <string name="distance_label">Разстояние: %1$.1fм</string>
+    <string name="awesome">Супер</string>
+    <string name="permissions_required">Изискват се разрешения за Камера и Локация за това действие</string>
+
+    <!-- Errors -->
+    <string name="error_title">Грешка</string>
+    <string name="ok">ОК</string>
+    <string name="server_problem_exit_message">В момента има проблем със сървъра. Моля опитайте по-късно.</string>
+    <string name="server_unreachable">Сървърът е недостъпен. Моля, опитайте по-късно.</string>
+    <string name="sync_failed">Синхронизацията не сполучи: %1$s</string>
+    <string name="login_failed">Входът е неуспешен</string>
+    <string name="google_signin_failed">Влизането с Google не сполучи</string>
+    <string name="registration_failed">Регистрацията е неуспешна</string>
+    <string name="session_expired">Сесията е изтекла. Моля, влезте отново.</string>
+    <string name="invalid_name_error">Невалидно име или вече е заето</string>
+    <string name="connection_error">Грешка при свързване. Моля, опитайте пак.</string>
+</resources>

@@ -1,0 +1,101 @@
+<resources>
+    <string name="app_name">Vision100</string>
+    <string name="default_web_client_id">932457770837-7g5jql83jmp8v1iv1hmf43c0v5cgeob1.apps.googleusercontent.com</string>
+
+    <!-- Auth -->
+    <string name="login_title">Welcome to Vision100</string>
+    <string name="login_subtitle">Please log in to continue</string>
+    <string name="email_label">Email</string>
+    <string name="password_label">Password</string>
+    <string name="login_button">Login</string>
+    <string name="register_link">Don\'t have an account? Register</string>
+    <string name="google_sign_in">Sign in with Google</string>
+    <string name="forgot_password">Forgot password?</string>
+    <string name="reset_password_title">Reset Password</string>
+    <string name="reset_password_description">Enter your email and we will send you a password reset link.</string>
+    <string name="send_reset_email">Send reset email</string>
+    <string name="password_reset_email_sent">Password reset email sent.</string>
+    <string name="enter_email_for_reset">Enter your email first.</string>
+    <string name="register_title">Create Account</string>
+    <string name="register_subtitle">Join Vision100 and start exploring</string>
+    <string name="username_label">Username</string>
+    <string name="confirm_password_label">Confirm Password</string>
+    <string name="register_button">Register</string>
+    <string name="login_link">Already have an account? Login</string>
+    <string name="passwords_mismatch">Passwords do not match</string>
+    <string name="google_signin_cancelled">Google sign-in cancelled</string>
+
+    <!-- Home -->
+    <string name="home_subtitle">100 National Tourist Sites of Bulgaria</string>
+    <string name="smart_check_in">Smart Check-in</string>
+    <string name="tourist_objects">Tourist Objects</string>
+    <string name="leaderboard">Leaderboard</string>
+
+    <!-- Profile -->
+    <string name="profile_title">My Profile</string>
+    <string name="total_points">Total Points</string>
+    <string name="my_progress">My Progress</string>
+    <string name="logout">Logout</string>
+    <string name="change_nickname">Change Nickname</string>
+    <string name="enter_new_name">Enter new name</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="change_nickname_dialog_title">Change Nickname</string>
+    <string name="change_password">Change Password</string>
+    <string name="current_password">Current Password</string>
+    <string name="new_password">New Password</string>
+    <string name="confirm_new_password">Confirm New Password</string>
+    <string name="password_changed_successfully">Password changed successfully.</string>
+    <string name="password_too_short">Password must be at least 6 characters.</string>
+
+    <!-- Objects -->
+    <string name="search_objects">Search objects</string>
+    <string name="list_view">List</string>
+    <string name="map_view">Map</string>
+    <string name="region_filter">Region</string>
+    <string name="category_filter">Category</string>
+    <string name="all_regions">All regions</string>
+    <string name="all_categories">All categories</string>
+    <string name="clear_filters">Clear filters</string>
+    <string name="no_objects_found">No objects match your filters.</string>
+    <string name="objects_count">%1$d objects</string>
+    <string name="my_location">My location</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="language">Language</string>
+    <string name="select_language">Select Language</string>
+    <string name="bulgarian">Bulgarian</string>
+    <string name="english">English</string>
+
+    <!-- History -->
+    <string name="visited_on">Visited on: %1$s</string>
+    <string name="pts_earned">%1$d pts earned</string>
+    <string name="pts_awarded">%1$d pts awarded</string>
+    <string name="photo_saved">Photo saved</string>
+    <string name="no_visits_yet">No visits yet. Start exploring!</string>
+
+    <!-- Check-in -->
+    <string name="gps_error">Could not get GPS location. Please check your settings.</string>
+    <string name="verification_failed_prefix">Verification failed: %1$s</string>
+    <string name="checkin_success_title">Check-in Successful!</string>
+    <string name="checkin_fail_title">Verification Failed</string>
+    <string name="points_awarded_label">Points Awarded: %1$d</string>
+    <string name="object_label">Object: %1$s</string>
+    <string name="distance_label">Distance: %1$.1fm</string>
+    <string name="awesome">Awesome</string>
+    <string name="permissions_required">Camera and Location permissions are required for Check-in</string>
+
+    <!-- Errors -->
+    <string name="error_title">Error</string>
+    <string name="ok">OK</string>
+    <string name="server_problem_exit_message">There is currently a problem with the server. Please try again later.</string>
+    <string name="server_unreachable">Server unreachable. Please try again later.</string>
+    <string name="sync_failed">Sync failed: %1$s</string>
+    <string name="login_failed">Login failed</string>
+    <string name="google_signin_failed">Google sign-in failed</string>
+    <string name="registration_failed">Registration failed</string>
+    <string name="session_expired">Session expired. Please log in again.</string>
+    <string name="invalid_name_error">Invalid name or already taken</string>
+    <string name="connection_error">Connection error. Please try again.</string>
+</resources>

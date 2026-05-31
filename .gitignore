@@ -15,7 +15,6 @@ ENV/
 vision100.db
 *.sqlite3
 
-100_nto_bilingual.json
 100_nto_bts_official_only_by_hand.json
 
 # Uploads

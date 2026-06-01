@@ -1,8 +1,17 @@
 package com.example.vision100.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Mail
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,6 +27,9 @@ import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import com.example.vision100.R
+import com.example.vision100.ui.components.FlagAccentBar
+import com.example.vision100.ui.components.VisionBackground
+import com.example.vision100.ui.components.VisionLogo
 import com.example.vision100.viewmodel.AuthViewModel
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -78,6 +90,173 @@ fun RegisterScreen(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
+        VisionBackground {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .imePadding()
+                    .padding(horizontal = 24.dp, vertical = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                VisionLogo(
+                    modifier = Modifier.size(108.dp),
+                    animated = true
+                )
+
+                Text(
+                    text = stringResource(R.string.register_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+
+                Text(
+                    text = stringResource(R.string.register_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 6.dp, bottom = 22.dp)
+                )
+
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        FlagAccentBar(height = 4.dp)
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        OutlinedTextField(
+                            value = username,
+                            onValueChange = { username = it },
+                            label = { Text(stringResource(R.string.username_label)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) }
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = { Text(stringResource(R.string.email_label)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            singleLine = true,
+                            leadingIcon = { Icon(Icons.Default.Mail, contentDescription = null) }
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = { Text(stringResource(R.string.password_label)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            singleLine = true,
+                            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) }
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        OutlinedTextField(
+                            value = confirmPassword,
+                            onValueChange = { confirmPassword = it },
+                            label = { Text(stringResource(R.string.confirm_password_label)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            singleLine = true,
+                            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) }
+                        )
+
+                        AnimatedVisibility(
+                            visible = errorMessage != null,
+                            enter = fadeIn() + expandVertically()
+                        ) {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Text(
+                                    text = errorMessage.orEmpty(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(12.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(22.dp))
+
+                        Button(
+                            onClick = {
+                                if (password == confirmPassword) {
+                                    viewModel.register(username, email, password)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            enabled = email.isNotEmpty() &&
+                                    password.isNotEmpty() &&
+                                    confirmPassword.isNotEmpty() &&
+                                    username.isNotEmpty() &&
+                                    !isLoading
+                        ) {
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text(stringResource(R.string.register_button))
+                            }
+                        }
+
+                        TextButton(
+                            onClick = onNavigateToLogin,
+                            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 12.dp)
+                        ) {
+                            Text(stringResource(R.string.login_link), textAlign = TextAlign.Center)
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            HorizontalDivider(modifier = Modifier.weight(1f))
+                            Text(
+                                text = "Google",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 12.dp)
+                            )
+                            HorizontalDivider(modifier = Modifier.weight(1f))
+                        }
+
+                        OutlinedButton(
+                            onClick = { handleGoogleSignIn() },
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            enabled = !isLoading
+                        ) {
+                            Icon(Icons.Default.AccountCircle, contentDescription = null)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(stringResource(R.string.google_sign_in))
+                        }
+                    }
+                }
+            }
+        }
+
         IconButton(
             onClick = onNavigateToSettings,
             modifier = Modifier
@@ -85,114 +264,6 @@ fun RegisterScreen(
                 .padding(16.dp)
         ) {
             Icon(Icons.Default.Settings, contentDescription = "Settings")
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = stringResource(R.string.register_title),
-                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center
-            )
-
-            Text(
-                text = stringResource(R.string.register_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 8.dp, bottom = 32.dp)
-            )
-
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                label = { Text(stringResource(R.string.username_label)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text(stringResource(R.string.email_label)) },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text(stringResource(R.string.password_label)) },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = confirmPassword,
-                onValueChange = { confirmPassword = it },
-                label = { Text(stringResource(R.string.confirm_password_label)) },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true
-            )
-
-            if (errorMessage != null) {
-                Text(
-                    text = errorMessage!!,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp),
-                    textAlign = TextAlign.Center
-                )
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Button(
-                onClick = {
-                    if (password == confirmPassword) {
-                        viewModel.register(username, email, password)
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = email.isNotEmpty() && password.isNotEmpty() && confirmPassword.isNotEmpty() && username.isNotEmpty() && !isLoading
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
-                } else {
-                    Text(stringResource(R.string.register_button))
-                }
-            }
-
-            TextButton(onClick = onNavigateToLogin, modifier = Modifier.padding(top = 16.dp)) {
-                Text(stringResource(R.string.login_link))
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedButton(
-                onClick = { handleGoogleSignIn() },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = !isLoading
-            ) {
-                Text(stringResource(R.string.google_sign_in))
-            }
         }
     }
 }

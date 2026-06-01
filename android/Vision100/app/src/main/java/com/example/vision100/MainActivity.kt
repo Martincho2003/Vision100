@@ -1,31 +1,41 @@
 package com.example.vision100
 
+import android.content.Context
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.vision100.network.ApiService
 import com.example.vision100.repository.AuthRepository
 import com.example.vision100.repository.ObjectRepository
+import com.example.vision100.ui.components.VisionBackground
+import com.example.vision100.ui.components.VisionLoadingState
 import com.example.vision100.ui.screens.*
+import com.example.vision100.ui.theme.AppThemeMode
 import com.example.vision100.ui.theme.Vision100Theme
 import com.example.vision100.viewmodel.*
 import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : AppCompatActivity() {
+    private companion object {
+        const val PREFS_NAME = "vision100_preferences"
+        const val PREF_THEME_MODE = "theme_mode"
+    }
+
     private enum class ServerHealthState {
         Checking,
         Available,
@@ -41,7 +51,20 @@ class MainActivity : AppCompatActivity() {
 
         enableEdgeToEdge()
         setContent {
-            Vision100Theme {
+            val preferences = remember {
+                getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            }
+            var appThemeMode by remember {
+                mutableStateOf(AppThemeMode.fromStoredValue(preferences.getString(PREF_THEME_MODE, null)))
+            }
+            val systemDarkTheme = isSystemInDarkTheme()
+            val useDarkTheme = when (appThemeMode) {
+                AppThemeMode.System -> systemDarkTheme
+                AppThemeMode.Light -> false
+                AppThemeMode.Dark -> true
+            }
+
+            Vision100Theme(darkTheme = useDarkTheme) {
                 var serverHealthState by remember { mutableStateOf(ServerHealthState.Checking) }
 
                 LaunchedEffect(Unit) {
@@ -54,8 +77,14 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 if (serverHealthState == ServerHealthState.Checking) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                    VisionBackground {
+                        VisionLoadingState(
+                            title = stringResource(R.string.loading_server),
+                            message = stringResource(R.string.checking_server),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(24.dp)
+                        )
                     }
                     return@Vision100Theme
                 }
@@ -91,6 +120,11 @@ class MainActivity : AppCompatActivity() {
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     val user = currentUser
+                    val onThemeModeChange: (AppThemeMode) -> Unit = { mode ->
+                        appThemeMode = mode
+                        preferences.edit().putString(PREF_THEME_MODE, mode.name).apply()
+                    }
+
                     if (user == null) {
                         var authScreen by remember { mutableStateOf("login") }
                         val authViewModel: AuthViewModel = viewModel { AuthViewModel(authRepository) }
@@ -101,7 +135,12 @@ class MainActivity : AppCompatActivity() {
                         }
 
                         if (screenState == "settings") {
-                            SettingsScreen(onNavigateBack = { screenState = "home" }, modifier = Modifier.padding(innerPadding))
+                            SettingsScreen(
+                                themeMode = appThemeMode,
+                                onThemeModeChange = onThemeModeChange,
+                                onNavigateBack = { screenState = "home" },
+                                modifier = Modifier.padding(innerPadding)
+                            )
                         } else {
                             when (authScreen) {
                                 "login" -> LoginScreen(
@@ -157,7 +196,12 @@ class MainActivity : AppCompatActivity() {
                                 HistoryScreen(viewModel = historyViewModel, onNavigateBack = { screenState = "profile" }, modifier = Modifier.padding(innerPadding))
                             }
                             "settings" -> {
-                                SettingsScreen(onNavigateBack = { screenState = "home" }, modifier = Modifier.padding(innerPadding))
+                                SettingsScreen(
+                                    themeMode = appThemeMode,
+                                    onThemeModeChange = onThemeModeChange,
+                                    onNavigateBack = { screenState = "home" },
+                                    modifier = Modifier.padding(innerPadding)
+                                )
                             }
                         }
                     }

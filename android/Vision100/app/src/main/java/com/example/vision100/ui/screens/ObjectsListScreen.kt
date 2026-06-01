@@ -22,7 +22,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FilterListOff
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Search
@@ -44,6 +47,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.vision100.R
 import com.example.vision100.data.TouristObject
+import com.example.vision100.ui.components.FlagAccentBar
+import com.example.vision100.ui.components.FlagChip
+import com.example.vision100.ui.components.VisionBackground
+import com.example.vision100.ui.components.VisionEmptyState
+import com.example.vision100.ui.components.VisionLoadingState
+import com.example.vision100.ui.components.VisionTopBar
 import com.example.vision100.viewmodel.ObjectViewModel
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -115,61 +124,64 @@ fun ObjectsListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.tourist_objects)) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                windowInsets = WindowInsets(top = 0.dp)
+            VisionTopBar(
+                title = stringResource(R.string.tourist_objects),
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                navigationContentDescription = "Back",
+                onNavigationClick = onNavigateBack
             )
         },
         modifier = modifier
     ) { padding ->
-        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (errorMessage != null) {
-                Text(
-                    text = errorMessage!!,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.align(Alignment.Center).padding(16.dp),
-                    textAlign = TextAlign.Center
-                )
-            } else {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    ObjectsFilterBar(
-                        searchQuery = searchQuery,
-                        onSearchQueryChange = { searchQuery = it },
-                        regions = regions,
-                        selectedRegion = selectedRegion,
-                        onRegionSelected = { selectedRegion = it },
-                        categories = categories,
-                        selectedCategory = selectedCategory,
-                        onCategorySelected = { selectedCategory = it },
-                        viewMode = viewMode,
-                        onViewModeChange = { viewMode = it },
-                        filteredCount = filteredObjects.size,
-                        onClearFilters = {
-                            searchQuery = ""
-                            selectedRegion = null
-                            selectedCategory = null
-                        }
+        VisionBackground {
+            Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+                if (isLoading) {
+                    VisionLoadingState(
+                        title = stringResource(R.string.object_catalog),
+                        message = stringResource(R.string.home_subtitle),
+                        modifier = Modifier.align(Alignment.Center)
                     )
+                } else if (errorMessage != null) {
+                    VisionEmptyState(
+                        icon = Icons.Default.FilterListOff,
+                        title = stringResource(R.string.error_title),
+                        message = errorMessage!!,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                } else {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        ObjectsFilterBar(
+                            searchQuery = searchQuery,
+                            onSearchQueryChange = { searchQuery = it },
+                            regions = regions,
+                            selectedRegion = selectedRegion,
+                            onRegionSelected = { selectedRegion = it },
+                            categories = categories,
+                            selectedCategory = selectedCategory,
+                            onCategorySelected = { selectedCategory = it },
+                            viewMode = viewMode,
+                            onViewModeChange = { viewMode = it },
+                            filteredCount = filteredObjects.size,
+                            onClearFilters = {
+                                searchQuery = ""
+                                selectedRegion = null
+                                selectedCategory = null
+                            }
+                        )
 
-                    if (filteredObjects.isEmpty()) {
-                        EmptyObjectsMessage(modifier = Modifier.weight(1f).fillMaxWidth())
-                    } else {
-                        when (viewMode) {
-                            ObjectsViewMode.List -> ObjectsList(
-                                objects = filteredObjects,
-                                modifier = Modifier.weight(1f).fillMaxWidth()
-                            )
-                            ObjectsViewMode.Map -> ObjectsMap(
-                                objects = filteredObjects,
-                                modifier = Modifier.weight(1f).fillMaxWidth()
-                            )
+                        if (filteredObjects.isEmpty()) {
+                            EmptyObjectsMessage(modifier = Modifier.weight(1f).fillMaxWidth())
+                        } else {
+                            when (viewMode) {
+                                ObjectsViewMode.List -> ObjectsList(
+                                    objects = filteredObjects,
+                                    modifier = Modifier.weight(1f).fillMaxWidth()
+                                )
+                                ObjectsViewMode.Map -> ObjectsMap(
+                                    objects = filteredObjects,
+                                    modifier = Modifier.weight(1f).fillMaxWidth()
+                                )
+                            }
                         }
                     }
                 }
@@ -196,93 +208,99 @@ private fun ObjectsFilterBar(
 ) {
     val hasActiveFilters = searchQuery.isNotBlank() || selectedRegion != null || selectedCategory != null
 
-    Column(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    Surface(
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        tonalElevation = 1.dp,
+        shadowElevation = 1.dp
     ) {
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchQueryChange,
-            label = { Text(stringResource(R.string.search_objects)) },
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-            singleLine = true,
-            leadingIcon = {
-                Icon(Icons.Default.Search, contentDescription = null)
-            },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { onSearchQueryChange("") }) {
-                        Icon(Icons.Default.Close, contentDescription = "Clear search")
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                label = { Text(stringResource(R.string.search_objects)) },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                singleLine = true,
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = null)
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { onSearchQueryChange("") }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear search")
+                        }
                     }
                 }
+            )
+
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                SegmentedButton(
+                    selected = viewMode == ObjectsViewMode.List,
+                    onClick = { onViewModeChange(ObjectsViewMode.List) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                    icon = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ViewList,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    label = { Text(stringResource(R.string.list_view)) }
+                )
+                SegmentedButton(
+                    selected = viewMode == ObjectsViewMode.Map,
+                    onClick = { onViewModeChange(ObjectsViewMode.Map) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                    icon = {
+                        Icon(
+                            Icons.Default.Map,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    label = { Text(stringResource(R.string.map_view)) }
+                )
             }
-        )
 
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            SegmentedButton(
-                selected = viewMode == ObjectsViewMode.List,
-                onClick = { onViewModeChange(ObjectsViewMode.List) },
-                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                icon = {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ViewList,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                label = { Text(stringResource(R.string.list_view)) }
-            )
-            SegmentedButton(
-                selected = viewMode == ObjectsViewMode.Map,
-                onClick = { onViewModeChange(ObjectsViewMode.Map) },
-                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                icon = {
-                    Icon(
-                        Icons.Default.Map,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                label = { Text(stringResource(R.string.map_view)) }
-            )
-        }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                FilterDropdown(
+                    label = stringResource(R.string.region_filter),
+                    allLabel = stringResource(R.string.all_regions),
+                    options = regions,
+                    selectedValue = selectedRegion,
+                    onSelected = onRegionSelected,
+                    modifier = Modifier.weight(1f)
+                )
+                FilterDropdown(
+                    label = stringResource(R.string.category_filter),
+                    allLabel = stringResource(R.string.all_categories),
+                    options = categories,
+                    selectedValue = selectedCategory,
+                    onSelected = onCategorySelected,
+                    modifier = Modifier.weight(1f)
+                )
+            }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            FilterDropdown(
-                label = stringResource(R.string.region_filter),
-                allLabel = stringResource(R.string.all_regions),
-                options = regions,
-                selectedValue = selectedRegion,
-                onSelected = onRegionSelected,
-                modifier = Modifier.weight(1f)
-            )
-            FilterDropdown(
-                label = stringResource(R.string.category_filter),
-                allLabel = stringResource(R.string.all_categories),
-                options = categories,
-                selectedValue = selectedCategory,
-                onSelected = onCategorySelected,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = stringResource(R.string.objects_count, filteredCount),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f)
-            )
-            if (hasActiveFilters) {
-                TextButton(onClick = onClearFilters) {
-                    Text(stringResource(R.string.clear_filters))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.objects_count, filteredCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                if (hasActiveFilters) {
+                    TextButton(onClick = onClearFilters) {
+                        Text(stringResource(R.string.clear_filters))
+                    }
                 }
             }
         }
@@ -359,7 +377,7 @@ private fun ObjectsList(
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         items(objects, key = { it.id }) { obj ->
             TouristObjectItem(obj)
@@ -575,46 +593,91 @@ private fun fetchCurrentLocation(
 
 @Composable
 private fun EmptyObjectsMessage(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-        Text(
-            text = stringResource(R.string.no_objects_found),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-    }
+    VisionEmptyState(
+        icon = Icons.Default.FilterListOff,
+        title = stringResource(R.string.no_objects_found),
+        message = stringResource(R.string.clear_filters),
+        modifier = modifier
+    )
 }
 
 @Composable
 fun TouristObjectItem(obj: TouristObject) {
-    val metadata = listOfNotNull(obj.region, obj.category)
-        .filter { it.isNotBlank() }
-        .joinToString("  |  ")
+    val metadata = listOfNotNull(
+        obj.region?.trim()?.takeIf(String::isNotEmpty),
+        obj.category?.trim()?.takeIf(String::isNotEmpty)
+    )
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "${obj.number}. ${obj.name}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            if (metadata.isNotBlank()) {
-                Text(
-                    text = metadata,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary
+        Column {
+            FlagAccentBar(height = 3.dp)
+            Row(
+                modifier = Modifier.padding(14.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.secondary
+                ) {
+                    Text(
+                        text = obj.number,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        maxLines = 1
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = obj.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (metadata.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            metadata.take(2).forEachIndexed { index, item ->
+                                FlagChip(
+                                    text = item,
+                                    color = if (index == 0) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.secondary
+                                    },
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = obj.description ?: stringResource(R.string.no_description_available),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+
+                Icon(
+                    imageVector = if (obj.category.isNullOrBlank()) Icons.Default.LocationOn else Icons.Default.Category,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.74f),
+                    modifier = Modifier.padding(start = 8.dp).size(22.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = obj.description ?: "No description available",
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
         }
     }
 }

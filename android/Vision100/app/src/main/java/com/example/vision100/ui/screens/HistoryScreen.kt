@@ -3,15 +3,43 @@ package com.example.vision100.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Stars
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,6 +52,13 @@ import coil.compose.AsyncImage
 import com.example.vision100.R
 import com.example.vision100.data.VisitResponse
 import com.example.vision100.network.ApiService
+import com.example.vision100.ui.components.FlagAccentBar
+import com.example.vision100.ui.components.FlagChip
+import com.example.vision100.ui.components.VisionBackground
+import com.example.vision100.ui.components.VisionEmptyState
+import com.example.vision100.ui.components.VisionLoadingState
+import com.example.vision100.ui.components.VisionStatTile
+import com.example.vision100.ui.components.VisionTopBar
 import com.example.vision100.viewmodel.HistoryViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,7 +71,6 @@ fun HistoryScreen(
     val visits by viewModel.visits
     val isLoading by viewModel.isLoading
     val errorMessage by viewModel.errorMessage
-    
     var selectedPhotoUrl by remember { mutableStateOf<String?>(null) }
 
     BackHandler {
@@ -49,41 +83,86 @@ fun HistoryScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.my_progress)) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                windowInsets = WindowInsets(top = 0.dp)
+            VisionTopBar(
+                title = stringResource(R.string.my_progress),
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                navigationContentDescription = "Back",
+                onNavigationClick = onNavigateBack
             )
         },
         modifier = modifier
     ) { padding ->
-        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (errorMessage != null) {
-                Text(errorMessage!!, color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.Center))
-            } else if (visits.isEmpty()) {
-                Text(stringResource(R.string.no_visits_yet), modifier = Modifier.align(Alignment.Center))
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(visits) { visit ->
-                        VisitItem(visit, onPhotoClick = { selectedPhotoUrl = it })
+        VisionBackground {
+            Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+                when {
+                    isLoading -> {
+                        VisionLoadingState(
+                            title = stringResource(R.string.my_progress),
+                            message = stringResource(R.string.verified_visits),
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
+                    errorMessage != null -> {
+                        VisionEmptyState(
+                            icon = Icons.Default.CalendarMonth,
+                            title = stringResource(R.string.error_title),
+                            message = errorMessage!!,
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
+                    visits.isEmpty() -> {
+                        VisionEmptyState(
+                            icon = Icons.Default.PhotoCamera,
+                            title = stringResource(R.string.my_progress),
+                            message = stringResource(R.string.no_visits_yet),
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
+                    else -> {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            item {
+                                HistorySummary(visits = visits)
+                            }
+                            items(visits, key = { it.id }) { visit ->
+                                VisitItem(visit, onPhotoClick = { selectedPhotoUrl = it })
+                            }
+                        }
                     }
                 }
             }
         }
     }
 
-    if (selectedPhotoUrl != null) {
-        PhotoDialog(photoUrl = selectedPhotoUrl!!, onDismiss = { selectedPhotoUrl = null })
+    selectedPhotoUrl?.let { photoUrl ->
+        PhotoDialog(photoUrl = photoUrl, onDismiss = { selectedPhotoUrl = null })
+    }
+}
+
+@Composable
+private fun HistorySummary(visits: List<VisitResponse>) {
+    val totalPoints = visits.sumOf { it.pointsAwarded }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        VisionStatTile(
+            label = stringResource(R.string.verified_visits),
+            value = visits.size.toString(),
+            icon = Icons.Default.CalendarMonth,
+            modifier = Modifier.weight(1f)
+        )
+        VisionStatTile(
+            label = stringResource(R.string.total_points),
+            value = totalPoints.toString(),
+            icon = Icons.Default.Stars,
+            modifier = Modifier.weight(1f),
+            accentColor = MaterialTheme.colorScheme.secondary
+        )
     }
 }
 
@@ -91,18 +170,18 @@ fun HistoryScreen(
 fun VisitItem(visit: VisitResponse, onPhotoClick: (String) -> Unit) {
     val touristObject = visit.touristObject ?: return
     var dateText = visit.visitedAt ?: ""
-    
+
     try {
         val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
         inputFormat.timeZone = java.util.TimeZone.getTimeZone("UTC")
         val parsedDate = inputFormat.parse(dateText)
-        
+
         if (parsedDate != null) {
             val outputFormat = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault())
             dateText = outputFormat.format(parsedDate)
         }
     } catch (e: Exception) {
-
+        // Keep the server value if parsing fails.
     }
 
     val hasPhoto = !visit.photoUrl.isNullOrEmpty()
@@ -110,36 +189,70 @@ fun VisitItem(visit: VisitResponse, onPhotoClick: (String) -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = hasPhoto) { 
+            .clickable(enabled = hasPhoto) {
                 onPhotoClick(ApiService.getVisitPhotoUrl(visit.id))
             },
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = touristObject.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = stringResource(R.string.visited_on, dateText),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.secondary
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
-            ) {
-                Text(
-                    text = stringResource(R.string.pts_earned, visit.pointsAwarded),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                )
-                if (hasPhoto) {
-                    Text("📸 " + stringResource(R.string.photo_saved), style = MaterialTheme.typography.labelSmall)
+        Column {
+            FlagAccentBar(height = 3.dp)
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarMonth,
+                            contentDescription = null,
+                            modifier = Modifier.padding(10.dp).size(24.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = touristObject.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = stringResource(R.string.visited_on, dateText),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FlagChip(
+                        text = stringResource(R.string.pts_earned, visit.pointsAwarded),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (hasPhoto) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Image,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = stringResource(R.string.photo_saved),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
         }

@@ -1,8 +1,10 @@
 package com.example.vision100.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -14,14 +16,24 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.vision100.R
+import com.example.vision100.data.UserResponse
+import com.example.vision100.ui.components.FlagAccentBar
+import com.example.vision100.ui.components.VisionBackground
+import com.example.vision100.ui.components.VisionEmptyState
+import com.example.vision100.ui.components.VisionLoadingState
+import com.example.vision100.ui.components.VisionStatTile
+import com.example.vision100.ui.components.VisionTopBar
 import com.example.vision100.viewmodel.ProfileViewModel
 import kotlinx.coroutines.launch
 
@@ -228,118 +240,157 @@ fun ProfileScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.profile_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                windowInsets = WindowInsets(top = 0.dp)
+            VisionTopBar(
+                title = stringResource(R.string.profile_title),
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                navigationContentDescription = "Back",
+                onNavigationClick = onNavigateBack
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { padding ->
-        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (errorMessage != null) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(errorMessage!!, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = onLogout) { Text("Re-login") }
-                }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(100.dp),
-                        tint = MaterialTheme.colorScheme.primary
+        VisionBackground {
+            Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+                if (isLoading) {
+                    VisionLoadingState(
+                        title = stringResource(R.string.profile_title),
+                        message = stringResource(R.string.my_progress),
+                        modifier = Modifier.align(Alignment.Center)
                     )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                } else if (errorMessage != null) {
+                    Column(
+                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = userData?.displayName ?: "User",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                        VisionEmptyState(
+                            icon = Icons.Default.PersonOff,
+                            title = stringResource(R.string.error_title),
+                            message = errorMessage!!
                         )
-                        IconButton(onClick = { showEditNameDialog = true }) {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Edit Name",
-                                modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.secondary
+                        Button(onClick = onLogout, modifier = Modifier.padding(top = 8.dp)) {
+                            Text(stringResource(R.string.retry_login))
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        ProfileHero(
+                            user = userData,
+                            onEditName = { showEditNameDialog = true }
+                        )
+
+                        VisionStatTile(
+                            label = stringResource(R.string.total_points),
+                            value = "${userData?.totalPoints ?: 0}",
+                            icon = Icons.Default.Stars,
+                            accentColor = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            ProfileMenuItem(
+                                icon = Icons.AutoMirrored.Filled.ShowChart,
+                                text = stringResource(R.string.my_progress),
+                                onClick = onNavigateToHistory
+                            )
+                            if (canChangePassword) {
+                                ProfileMenuItem(
+                                    icon = Icons.Default.Lock,
+                                    text = stringResource(R.string.change_password),
+                                    onClick = { showChangePasswordDialog = true }
+                                )
+                            }
+                            ProfileMenuItem(
+                                icon = Icons.AutoMirrored.Filled.ExitToApp,
+                                text = stringResource(R.string.logout),
+                                onClick = {
+                                    viewModel.logout()
+                                    onLogout()
+                                },
+                                color = MaterialTheme.colorScheme.error
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+}
 
+@Composable
+private fun ProfileHero(
+    user: UserResponse?,
+    onEditName: () -> Unit
+) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+    ) {
+        Column {
+            FlagAccentBar(height = 4.dp)
+            Column(
+                modifier = Modifier.padding(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    modifier = Modifier.size(92.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f))
+                ) {
+                    if (!user?.avatarUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = user?.avatarUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier.padding(20.dp).fillMaxSize()
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.padding(top = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
                     Text(
-                        text = userData?.email ?: "",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        text = user?.displayName ?: "User",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
-
-                    Spacer(modifier = Modifier.height(32.dp))
-
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(stringResource(R.string.total_points), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                            Text(
-                                text = "${userData?.totalPoints ?: 0}",
-                                style = MaterialTheme.typography.displayMedium,
-                                fontWeight = FontWeight.Black,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(32.dp))
-
-                    ProfileMenuItem(
-                        icon = Icons.AutoMirrored.Filled.ShowChart, 
-                        text = stringResource(R.string.my_progress), 
-                        onClick = onNavigateToHistory
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    if (canChangePassword) {
-                        ProfileMenuItem(
-                            icon = Icons.Default.Lock,
-                            text = stringResource(R.string.change_password),
-                            onClick = { showChangePasswordDialog = true }
+                    IconButton(onClick = onEditName) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit Name",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.secondary
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
                     }
-                    ProfileMenuItem(
-                        icon = Icons.AutoMirrored.Filled.ExitToApp, 
-                        text = stringResource(R.string.logout), 
-                        onClick = {
-                            viewModel.logout()
-                            onLogout()
-                        }, color = MaterialTheme.colorScheme.error)
                 }
+
+                Text(
+                    text = user?.email ?: "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }
@@ -355,8 +406,12 @@ fun ProfileMenuItem(
     Surface(
         onClick = onClick,
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
+        color = if (color == MaterialTheme.colorScheme.error) {
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.48f)
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
+        tonalElevation = 1.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -365,7 +420,17 @@ fun ProfileMenuItem(
         ) {
             Icon(imageVector = icon, contentDescription = null, tint = color)
             Spacer(modifier = Modifier.width(16.dp))
-            Text(text = text, style = MaterialTheme.typography.bodyLarge, color = color)
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge,
+                color = color,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = color.copy(alpha = 0.7f)
+            )
         }
     }
 }

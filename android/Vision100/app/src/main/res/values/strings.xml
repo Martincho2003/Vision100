@@ -30,6 +30,12 @@
     <string name="smart_check_in">Smart Check-in</string>
     <string name="tourist_objects">Tourist Objects</string>
     <string name="leaderboard">Leaderboard</string>
+    <string name="home_hero_title">Explore Bulgaria. Verify the moment.</string>
+    <string name="home_hero_body">AI photo recognition and GPS confirmation replace stamps with a smarter digital journey.</string>
+    <string name="check_in_action_body">Capture the site and confirm your visit in one guided flow.</string>
+    <string name="objects_action_body">Browse and filter the national tourist sites.</string>
+    <string name="leaderboard_action_body">Compare progress and keep the challenge alive.</string>
+    <string name="start_exploring">Start exploring</string>
 
     <!-- Profile -->
     <string name="profile_title">My Profile</string>
@@ -47,6 +53,8 @@
     <string name="confirm_new_password">Confirm New Password</string>
     <string name="password_changed_successfully">Password changed successfully.</string>
     <string name="password_too_short">Password must be at least 6 characters.</string>
+    <string name="verified_visits">Verified visits</string>
+    <string name="retry_login">Re-login</string>
 
     <!-- Objects -->
     <string name="search_objects">Search objects</string>
@@ -60,6 +68,9 @@
     <string name="no_objects_found">No objects match your filters.</string>
     <string name="objects_count">%1$d objects</string>
     <string name="my_location">My location</string>
+    <string name="object_catalog">Object catalog</string>
+    <string name="unknown_object">Unknown object</string>
+    <string name="no_description_available">No description available yet.</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
@@ -67,6 +78,11 @@
     <string name="select_language">Select Language</string>
     <string name="bulgarian">Bulgarian</string>
     <string name="english">English</string>
+    <string name="appearance">Appearance</string>
+    <string name="theme_mode">Theme mode</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
 
     <!-- History -->
     <string name="visited_on">Visited on: %1$s</string>
@@ -74,6 +90,8 @@
     <string name="pts_awarded">%1$d pts awarded</string>
     <string name="photo_saved">Photo saved</string>
     <string name="no_visits_yet">No visits yet. Start exploring!</string>
+    <string name="visits_count">%1$d visits</string>
+    <string name="photos">Photos</string>
 
     <!-- Check-in -->
     <string name="gps_error">Could not get GPS location. Please check your settings.</string>
@@ -85,10 +103,20 @@
     <string name="distance_label">Distance: %1$.1fm</string>
     <string name="awesome">Awesome</string>
     <string name="permissions_required">Camera and Location permissions are required for Check-in</string>
+    <string name="request_permissions">Grant permissions</string>
+    <string name="checkin_hint_title">Frame the landmark clearly</string>
+    <string name="checkin_hint_body">Keep the object visible and stay near the official location while Vision100 verifies it.</string>
+    <string name="camera_ready">Camera ready</string>
+    <string name="ai_verification">AI verification</string>
+    <string name="gps_verified">GPS check</string>
+    <string name="verifying_visit">Verifying visit...</string>
 
     <!-- Errors -->
     <string name="error_title">Error</string>
     <string name="ok">OK</string>
+    <string name="loading_server">Preparing Vision100</string>
+    <string name="checking_server">Checking server connection before the journey starts.</string>
+    <string name="leaderboard_empty">No ranking data yet.</string>
     <string name="server_problem_exit_message">There is currently a problem with the server. Please try again later.</string>
     <string name="server_unreachable">Server unreachable. Please try again later.</string>
     <string name="sync_failed">Sync failed: %1$s</string>

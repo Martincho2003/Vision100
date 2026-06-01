@@ -29,6 +29,12 @@
     <string name="smart_check_in">Умно отбеляване на обект</string>
     <string name="tourist_objects">Туристически обекти</string>
     <string name="leaderboard">Класация</string>
+    <string name="home_hero_title">Откривайте България. Потвърждавайте момента.</string>
+    <string name="home_hero_body">AI разпознаване на снимка и GPS потвърждение заменят печатите с по-умно дигитално пътешествие.</string>
+    <string name="check_in_action_body">Снимайте обекта и потвърдете посещението в един ясен процес.</string>
+    <string name="objects_action_body">Разглеждай и филтрирай (на карта) националните туристически обекти.</string>
+    <string name="leaderboard_action_body">Сравнявай прогреса си и поддържай предизвикателството живо.</string>
+    <string name="start_exploring">Започнете да изследвате</string>
 
     <!-- Profile -->
     <string name="profile_title">Моят профил</string>
@@ -46,6 +52,8 @@
     <string name="confirm_new_password">Потвърди новата парола</string>
     <string name="password_changed_successfully">Паролата е сменена успешно.</string>
     <string name="password_too_short">Паролата трябва да е поне 6 символа.</string>
+    <string name="verified_visits">Потвърдени посещения</string>
+    <string name="retry_login">Влезте отново</string>
 
     <!-- Objects -->
     <string name="search_objects">Търсене на обекти</string>
@@ -59,6 +67,9 @@
     <string name="no_objects_found">Няма обекти, които съвпадат с филтрите.</string>
     <string name="objects_count">%1$d обекта</string>
     <string name="my_location">Моето местоположение</string>
+    <string name="object_catalog">Каталог с обекти</string>
+    <string name="unknown_object">Неизвестен обект</string>
+    <string name="no_description_available">Все още няма описание.</string>
 
     <!-- Settings -->
     <string name="settings_title">Настройки</string>
@@ -66,6 +77,11 @@
     <string name="select_language">Избор на език</string>
     <string name="bulgarian">Български</string>
     <string name="english">Английски</string>
+    <string name="appearance">Външен вид</string>
+    <string name="theme_mode">Режим на темата</string>
+    <string name="theme_system">Системен</string>
+    <string name="theme_light">Дневен</string>
+    <string name="theme_dark">Нощен</string>
 
     <!-- History -->
     <string name="visited_on">Посетено на: %1$s</string>
@@ -73,6 +89,8 @@
     <string name="pts_awarded">%1$d спечелени точки</string>
     <string name="photo_saved">Снимката е запазена</string>
     <string name="no_visits_yet">Все още нямате посещения. Започнете да изследвате!</string>
+    <string name="visits_count">%1$d посещения</string>
+    <string name="photos">Снимки</string>
 
     <!-- Check-in -->
     <string name="gps_error">Неуспешно взимане на GPS локация. Моля, проверете настройките си.</string>
@@ -84,10 +102,20 @@
     <string name="distance_label">Разстояние: %1$.1fм</string>
     <string name="awesome">Супер</string>
     <string name="permissions_required">Изискват се разрешения за Камера и Локация за това действие</string>
+    <string name="request_permissions">Дайте разрешения</string>
+    <string name="checkin_hint_title">Поставете обекта ясно в кадър</string>
+    <string name="checkin_hint_body">Дръжте обекта видим и останете близо до официалната локация, докато Vision100 го проверява.</string>
+    <string name="camera_ready">Камерата е готова</string>
+    <string name="ai_verification">AI проверка</string>
+    <string name="gps_verified">GPS проверка</string>
+    <string name="verifying_visit">Проверка на посещението...</string>
 
     <!-- Errors -->
     <string name="error_title">Грешка</string>
     <string name="ok">ОК</string>
+    <string name="loading_server">Подготвяме Vision100</string>
+    <string name="checking_server">Проверяваме връзката със сървъра преди началото.</string>
+    <string name="leaderboard_empty">Все още няма данни за класацията.</string>
     <string name="server_problem_exit_message">В момента има проблем със сървъра. Моля опитайте по-късно.</string>
     <string name="server_unreachable">Сървърът е недостъпен. Моля, опитайте по-късно.</string>
     <string name="sync_failed">Синхронизацията не сполучи: %1$s</string>

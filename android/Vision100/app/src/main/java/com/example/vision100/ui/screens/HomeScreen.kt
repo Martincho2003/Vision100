@@ -1,20 +1,29 @@
 package com.example.vision100.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.vision100.R
+import com.example.vision100.ui.components.FlagAccentBar
+import com.example.vision100.ui.components.VisionBackground
+import com.example.vision100.ui.components.VisionLogo
+import com.example.vision100.ui.components.VisionTopBar
 import com.example.vision100.ui.theme.Vision100Theme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -27,16 +36,15 @@ fun HomeScreen(
     onNavigateToLeaderboard: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var contentVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        contentVisible = true
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { 
-                    Text(
-                        "Vision100", 
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold 
-                    ) 
-                },
+            VisionTopBar(
+                title = "Vision100",
                 actions = {
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
@@ -44,88 +52,143 @@ fun HomeScreen(
                     IconButton(onClick = onNavigateToProfile) {
                         Icon(Icons.Default.AccountCircle, contentDescription = "Profile")
                     }
-                },
-                windowInsets = WindowInsets(top = 0.dp)
+                }
             )
         },
         modifier = modifier
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "100",
-                style = MaterialTheme.typography.displayLarge.copy(
-                    fontWeight = FontWeight.Black,
-                    fontSize = 100.sp
-                ),
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center
-            )
-            
-            Text(
-                text = stringResource(R.string.home_subtitle),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.secondary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 8.dp)
-            )
+        VisionBackground {
+            AnimatedVisibility(
+                visible = contentVisible,
+                enter = fadeIn() + slideInVertically(initialOffsetY = { it / 8 })
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(padding)
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 22.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    VisionLogo(
+                        modifier = Modifier.size(152.dp),
+                        animated = true
+                    )
 
-            Spacer(modifier = Modifier.height(48.dp))
+                    Text(
+                        text = stringResource(R.string.home_subtitle),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.secondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
 
-            MenuButton(
-                text = stringResource(R.string.smart_check_in),
-                icon = Icons.Default.QrCodeScanner,
-                onClick = onNavigateToCheckIn
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            MenuButton(
-                text = stringResource(R.string.tourist_objects),
-                icon = Icons.Default.Map,
-                onClick = onNavigateToObjects
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            MenuButton(
-                text = stringResource(R.string.leaderboard),
-                icon = Icons.Default.EmojiEvents,
-                onClick = onNavigateToLeaderboard,
-                isSecondary = true
-            )
+                    Text(
+                        text = stringResource(R.string.home_hero_title),
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 12.dp)
+                    )
+
+                    Text(
+                        text = stringResource(R.string.home_hero_body),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 10.dp)
+                    )
+
+                    Button(
+                        onClick = onNavigateToCheckIn,
+                        modifier = Modifier
+                            .padding(top = 26.dp)
+                            .fillMaxWidth()
+                            .height(58.dp),
+                        contentPadding = PaddingValues(horizontal = 18.dp)
+                    ) {
+                        Icon(Icons.Default.QrCodeScanner, contentDescription = null)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(stringResource(R.string.start_exploring))
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+                    FlagAccentBar(height = 4.dp)
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    HomeActionCard(
+                        title = stringResource(R.string.tourist_objects),
+                        body = stringResource(R.string.objects_action_body),
+                        icon = Icons.Default.Map,
+                        accentColor = MaterialTheme.colorScheme.primary,
+                        onClick = onNavigateToObjects
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    HomeActionCard(
+                        title = stringResource(R.string.leaderboard),
+                        body = stringResource(R.string.leaderboard_action_body),
+                        icon = Icons.Default.EmojiEvents,
+                        accentColor = MaterialTheme.colorScheme.secondary,
+                        onClick = onNavigateToLeaderboard
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-fun MenuButton(
-    text: String,
+private fun HomeActionCard(
+    title: String,
+    body: String,
     icon: ImageVector,
     onClick: () -> Unit,
-    isSecondary: Boolean = false
+    accentColor: Color
 ) {
-    Button(
+    ElevatedCard(
         onClick = onClick,
         modifier = Modifier
-            .fillMaxWidth()
-            .height(64.dp),
-        colors = if (isSecondary) {
-            ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-        } else {
-            ButtonDefaults.buttonColors()
-        },
-        shape = MaterialTheme.shapes.large
+            .fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
     ) {
-        Icon(imageVector = icon, contentDescription = null)
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(text = text, style = MaterialTheme.typography.labelLarge.copy(fontSize = 18.sp))
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = accentColor.copy(alpha = 0.12f),
+                contentColor = accentColor
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.padding(12.dp).size(26.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = body,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 3.dp)
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = accentColor
+            )
+        }
     }
 }
 

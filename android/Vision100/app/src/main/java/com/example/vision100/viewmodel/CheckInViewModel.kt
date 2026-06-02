@@ -30,6 +30,12 @@ class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
     private val _isLoading = mutableStateOf(false)
     val isLoading: State<Boolean> = _isLoading
 
+    private val _isMockLocation = mutableStateOf(false)
+    val isMockLocation: State<Boolean> = _isMockLocation
+
+    private val _isLocationChecked = mutableStateOf(false)
+    val isLocationChecked: State<Boolean> = _isLocationChecked
+
     private val _checkInResult = mutableStateOf<CheckInResponse?>(null)
     val checkInResult: State<CheckInResponse?> = _checkInResult
 
@@ -39,6 +45,25 @@ class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
     fun clearResult() {
         _checkInResult.value = null
         _errorMessage.value = null
+        _isMockLocation.value = false
+        _isLocationChecked.value = false
+    }
+
+    @SuppressLint("MissingPermission")
+    fun checkMockLocation(context: Context) {
+        val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            /*
+            if (location?.isFromMockProvider == true) {
+                _isMockLocation.value = true
+                Log.e(TAG, "Mock location detected in lastLocation!")
+            }
+            */
+            _isLocationChecked.value = true
+        }.addOnFailureListener {
+            Log.e(TAG, "Failed to get last location for mock check", it)
+            _isLocationChecked.value = true
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -59,6 +84,17 @@ class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
                     _errorMessage.value = context.getString(R.string.gps_error)
                     return@launch
                 }
+
+                /* 
+                if (location.isFromMockProvider) {
+                    Log.e(TAG, "Mock location detected during verification!")
+                    _isMockLocation.value = true
+                    _isLoading.value = false
+                    _errorMessage.value = context.getString(R.string.mock_location_detected)
+                    return@launch
+                }
+                */
+
                 Log.d(TAG, "GPS Location obtained: Lat=${location.latitude}, Lon=${location.longitude}, Acc=${location.accuracy}")
 
                 Log.d(TAG, "Preparing photo file from URI: $photoUri")

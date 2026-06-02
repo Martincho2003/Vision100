@@ -110,6 +110,8 @@
     <string name="ai_verification">AI verification</string>
     <string name="gps_verified">GPS check</string>
     <string name="verifying_visit">Verifying visit...</string>
+    <string name="mock_location_detected">Mock location detected. Please disable GPS simulation apps.</string>
+    <string name="back">Back</string>
 
     <!-- Errors -->
     <string name="error_title">Error</string>

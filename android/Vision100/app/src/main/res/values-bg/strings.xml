@@ -109,6 +109,8 @@
     <string name="ai_verification">AI проверка</string>
     <string name="gps_verified">GPS проверка</string>
     <string name="verifying_visit">Проверка на посещението...</string>
+    <string name="mock_location_detected">Открита е фалшива локация. Моля, изключете приложенията за симулация на GPS.</string>
+    <string name="back">Назад</string>
 
     <!-- Errors -->
     <string name="error_title">Грешка</string>

@@ -1,6 +1,7 @@
 package com.example.vision100.ui.screens
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.BackHandler
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -60,11 +62,22 @@ fun CheckInScreen(
 ) {
     val context = LocalContext.current
     val isLoading by viewModel.isLoading
+    val isMockLocation by viewModel.isMockLocation
+    val isLocationChecked by viewModel.isLocationChecked
     val checkInResult by viewModel.checkInResult
     val errorMessage by viewModel.errorMessage
 
-    var hasCameraPermission by remember { mutableStateOf(false) }
-    var hasLocationPermission by remember { mutableStateOf(false) }
+    var hasCameraPermission by remember { 
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        ) 
+    }
+    var hasLocationPermission by remember { 
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        ) 
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -84,6 +97,12 @@ fun CheckInScreen(
         )
     }
 
+    LaunchedEffect(hasLocationPermission) {
+        if (hasLocationPermission) {
+            viewModel.checkMockLocation(context)
+        }
+    }
+
     BackHandler {
         if (checkInResult != null || errorMessage != null) {
             viewModel.clearResult()
@@ -93,14 +112,7 @@ fun CheckInScreen(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        if (hasCameraPermission && hasLocationPermission) {
-            CameraPreview(
-                onNavigateBack = onNavigateBack,
-                onPhotoCaptured = { uri ->
-                    viewModel.verifyCheckIn(context, uri)
-                }
-            )
-        } else {
+        if (!hasCameraPermission || !hasLocationPermission) {
             Column(
                 modifier = Modifier.align(Alignment.Center).padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -125,6 +137,36 @@ fun CheckInScreen(
                     Text(stringResource(R.string.request_permissions))
                 }
             }
+        } else if (!isLocationChecked) {
+            // Wait for GPS mock check to complete without flickering the camera
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center),
+                color = MaterialTheme.colorScheme.primary
+            )
+        } else if (isMockLocation) {
+            Column(
+                modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                VisionEmptyState(
+                    icon = Icons.Default.LocationOff,
+                    title = stringResource(R.string.error_title),
+                    message = stringResource(R.string.mock_location_detected)
+                )
+                Button(
+                    onClick = onNavigateBack,
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text(stringResource(R.string.back))
+                }
+            }
+        } else {
+            CameraPreview(
+                onNavigateBack = onNavigateBack,
+                onPhotoCaptured = { uri ->
+                    viewModel.verifyCheckIn(context, uri)
+                }
+            )
         }
 
         if (isLoading) {
@@ -163,7 +205,10 @@ fun CheckInScreen(
                 title = { Text(stringResource(R.string.error_title)) },
                 text = { Text(error) },
                 confirmButton = {
-                    Button(onClick = { viewModel.clearResult() }) { Text(stringResource(R.string.ok)) }
+                    Button(onClick = { 
+                        viewModel.clearResult()
+                        onNavigateBack()
+                    }) { Text(stringResource(R.string.ok)) }
                 }
             )
         }

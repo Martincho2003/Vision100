@@ -3,6 +3,7 @@ package com.example.vision100.ui.screens
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -10,10 +11,12 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
 import android.location.Location
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -38,7 +41,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -59,11 +61,14 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import org.osmdroid.config.Configuration
+import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.infowindow.InfoWindow
+import org.osmdroid.views.overlay.infowindow.MarkerInfoWindow
 
 private enum class ObjectsViewMode {
     List,
@@ -77,6 +82,7 @@ fun ObjectsListScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val objects by viewModel.objects
     val isLoading by viewModel.isLoading
     val errorMessage by viewModel.errorMessage
@@ -175,6 +181,9 @@ fun ObjectsListScreen(
                             when (viewMode) {
                                 ObjectsViewMode.List -> ObjectsList(
                                     objects = filteredObjects,
+                                    onObjectClick = { obj ->
+                                        openGoogleMaps(context, obj.latitude, obj.longitude, obj.name)
+                                    },
                                     modifier = Modifier.weight(1f).fillMaxWidth()
                                 )
                                 ObjectsViewMode.Map -> ObjectsMap(
@@ -372,6 +381,7 @@ private fun FilterDropdown(
 @Composable
 private fun ObjectsList(
     objects: List<TouristObject>,
+    onObjectClick: (TouristObject) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -380,7 +390,7 @@ private fun ObjectsList(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         items(objects, key = { it.id }) { obj ->
-            TouristObjectItem(obj)
+            TouristObjectItem(obj, onClick = { onObjectClick(obj) })
         }
     }
 }
@@ -458,18 +468,24 @@ private fun ObjectsMap(
             factory = { mapView },
             modifier = Modifier.fillMaxSize().clipToBounds(),
             update = { view ->
-                if (view.tag != objectSignature) {
+                val needsFullRedraw = view.tag != objectSignature
+                if (needsFullRedraw) {
                     InfoWindow.closeAllInfoWindowsOn(view)
-                    view.controller.setZoom(if (objects.size == 1) 14.0 else 7.0)
-                    view.controller.setCenter(objects.centerGeoPoint())
+                    view.overlays.clear()
+                    view.overlays.add(MapEventsOverlay(object : MapEventsReceiver {
+                        override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
+                            InfoWindow.closeAllInfoWindowsOn(view)
+                            return true
+                        }
+                        override fun longPressHelper(p: GeoPoint?): Boolean { return false }
+                    }))
+
+                    objects.forEach { obj ->
+                        view.overlays.add(obj.toObjectMarker(view, context))
+                    }
                     view.tag = objectSignature
                 }
-
-                InfoWindow.closeAllInfoWindowsOn(view)
-                view.overlays.clear()
-                objects.forEach { obj ->
-                    view.overlays.add(obj.toObjectMarker(view))
-                }
+                view.overlays.removeAll { it is Marker && it.title == myLocationLabel }
                 currentLocation?.let { location ->
                     view.overlays.add(location.toCurrentLocationMarker(view, myLocationLabel))
                 }
@@ -512,7 +528,19 @@ private fun List<TouristObject>.centerGeoPoint(): GeoPoint {
     )
 }
 
-private fun TouristObject.toObjectMarker(mapView: MapView): Marker {
+private fun openGoogleMaps(context: Context, lat: Float, lon: Float, label: String) {
+    val uri = "geo:$lat,$lon?q=$lat,$lon($label)"
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri))
+    intent.setPackage("com.google.android.apps.maps")
+    try {
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)))
+    }
+}
+
+private fun TouristObject.toObjectMarker(mapView: MapView, context: Context): Marker {
+    val obj = this
     return Marker(mapView).apply {
         position = GeoPoint(latitude.toDouble(), longitude.toDouble())
         title = "$number. $name"
@@ -520,6 +548,27 @@ private fun TouristObject.toObjectMarker(mapView: MapView): Marker {
             .filter { it.isNotBlank() }
             .joinToString(" / ")
         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+
+        infoWindow = object : MarkerInfoWindow(org.osmdroid.library.R.layout.bonuspack_bubble, mapView) {
+            @SuppressLint("ClickableViewAccessibility")
+            override fun onOpen(item: Any?) {
+                super.onOpen(item)
+                mView.setOnTouchListener { v, event ->
+                    if (event.action == android.view.MotionEvent.ACTION_UP) {
+                        openGoogleMaps(context, obj.latitude, obj.longitude, obj.name)
+                        v.performClick()
+                    }
+                    true
+                }
+            }
+        }
+
+        setOnMarkerClickListener { marker, map ->
+            InfoWindow.closeAllInfoWindowsOn(map)
+            marker.showInfoWindow()
+            map.controller.animateTo(marker.position)
+            true
+        }
     }
 }
 
@@ -602,14 +651,19 @@ private fun EmptyObjectsMessage(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun TouristObjectItem(obj: TouristObject) {
+fun TouristObjectItem(
+    obj: TouristObject,
+    onClick: () -> Unit
+) {
     val metadata = listOfNotNull(
         obj.region?.trim()?.takeIf(String::isNotEmpty),
         obj.category?.trim()?.takeIf(String::isNotEmpty)
     )
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {

@@ -6,15 +6,16 @@ def seed():
     create_tables()
     db = SessionLocal()
     try:
-        with open('100_nto_bilingual.json', 'r', encoding='utf-8') as f:
+        with open('100_nto_bilingual_updated.json', 'r', encoding='utf-8') as f:
             raw_objects = json.load(f)
             
         added = 0
         updated = 0
         
         for data in raw_objects:
-            obj_number = str(data['number'])
-            existing = db.query(TouristObject).filter_by(number=obj_number).first()
+            obj_number = int(data.get('number', 0))
+            name = str(data['name_bg'])
+            existing = db.query(TouristObject).filter_by(name_bg=name).first()
             
             if existing:
                 existing.name_bg = data.get('name_bg', '')

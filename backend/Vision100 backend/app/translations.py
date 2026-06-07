@@ -53,7 +53,7 @@ def get_language(accept_language: str) -> str:
             return primary_lang
     return "bg"
 
-def localize_tourist_object(obj, accept_language: str) -> dict:
+def localize_tourist_object(obj, accept_language: str, is_visited: int = 0) -> dict:
     lang = get_language(accept_language)
     return {
         "id": obj.id,
@@ -63,7 +63,8 @@ def localize_tourist_object(obj, accept_language: str) -> dict:
         "region": getattr(obj, f"region_{lang}", obj.region_bg),
         "category": getattr(obj, f"category_{lang}", obj.category_bg),
         "latitude": obj.latitude,
-        "longitude": obj.longitude
+        "longitude": obj.longitude,
+        "is_visited": is_visited
     }
 
 def localize_visit(visit, accept_language: str) -> dict:

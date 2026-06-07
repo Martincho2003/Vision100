@@ -18,12 +18,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FilterListOff
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,9 +34,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
@@ -72,6 +78,28 @@ fun HistoryScreen(
     val isLoading by viewModel.isLoading
     val errorMessage by viewModel.errorMessage
     var selectedPhotoUrl by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredVisits = remember(visits, searchQuery) {
+        val query = searchQuery.trim()
+        if (query.isBlank()) {
+            visits
+        } else {
+            visits.filter { visit ->
+                val touristObject = visit.touristObject
+                listOfNotNull(
+                    touristObject?.number,
+                    touristObject?.name,
+                    touristObject?.description,
+                    touristObject?.region,
+                    touristObject?.category,
+                    touristObject?.aiLabels,
+                    visit.visitedAt,
+                    visit.pointsAwarded.toString()
+                ).any { value -> value.contains(query, ignoreCase = true) }
+            }
+        }
+    }
 
     BackHandler {
         onNavigateBack()
@@ -119,16 +147,34 @@ fun HistoryScreen(
                         )
                     }
                     else -> {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            item {
-                                HistorySummary(visits = visits)
-                            }
-                            items(visits, key = { it.id }) { visit ->
-                                VisitItem(visit, onPhotoClick = { selectedPhotoUrl = it })
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            HistorySearchBar(
+                                searchQuery = searchQuery,
+                                onSearchQueryChange = { searchQuery = it },
+                                filteredCount = filteredVisits.size,
+                                onClearSearch = { searchQuery = "" }
+                            )
+
+                            if (filteredVisits.isEmpty()) {
+                                VisionEmptyState(
+                                    icon = Icons.Default.FilterListOff,
+                                    title = stringResource(R.string.no_visits_found),
+                                    message = stringResource(R.string.clear_filters),
+                                    modifier = Modifier.weight(1f).fillMaxWidth()
+                                )
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                                    contentPadding = PaddingValues(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    item {
+                                        HistorySummary(visits = visits)
+                                    }
+                                    items(filteredVisits, key = { it.id }) { visit ->
+                                        VisitItem(visit, onPhotoClick = { selectedPhotoUrl = it })
+                                    }
+                                }
                             }
                         }
                     }
@@ -139,6 +185,61 @@ fun HistoryScreen(
 
     selectedPhotoUrl?.let { photoUrl ->
         PhotoDialog(photoUrl = photoUrl, onDismiss = { selectedPhotoUrl = null })
+    }
+}
+
+@Composable
+private fun HistorySearchBar(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    filteredCount: Int,
+    onClearSearch: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        tonalElevation = 1.dp,
+        shadowElevation = 1.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                label = { Text(stringResource(R.string.search_history)) },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                singleLine = true,
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = null)
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = onClearSearch) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear search")
+                        }
+                    }
+                }
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.visits_count, filteredCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                if (searchQuery.isNotBlank()) {
+                    TextButton(onClick = onClearSearch) {
+                        Text(stringResource(R.string.clear_filters))
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -181,7 +282,6 @@ fun VisitItem(visit: VisitResponse, onPhotoClick: (String) -> Unit) {
             dateText = outputFormat.format(parsedDate)
         }
     } catch (e: Exception) {
-        // Keep the server value if parsing fails.
     }
 
     val hasPhoto = !visit.photoUrl.isNullOrEmpty()

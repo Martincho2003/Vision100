@@ -1,6 +1,7 @@
 package com.example.vision100.ui.screens
 
 import android.Manifest
+import android.content.res.Configuration
 import android.os.Build
 import android.content.Context
 import android.content.ContextWrapper
@@ -20,20 +21,17 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.LocationOff
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -165,7 +164,6 @@ fun CheckInScreen(
                 }
             }
         } else if (!isLocationChecked) {
-            // Wait for GPS mock check to complete without flickering the camera
             CircularProgressIndicator(
                 modifier = Modifier.align(Alignment.Center),
                 color = MaterialTheme.colorScheme.primary
@@ -258,6 +256,8 @@ fun CameraPreview(
     onPhotoCaptured: (Uri) -> Unit
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     
@@ -358,9 +358,13 @@ fun CameraPreview(
 
         Surface(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(start = 16.dp, end = 16.dp, bottom = 120.dp)
-                .fillMaxWidth(),
+                .align(if (isLandscape) Alignment.BottomStart else Alignment.BottomCenter)
+                .padding(
+                    start = 16.dp, 
+                    end = if (isLandscape) 120.dp else 16.dp, 
+                    bottom = if (isLandscape) 30.dp else 120.dp
+                )
+                .then(if (isLandscape) Modifier.fillMaxWidth(0.6f) else Modifier.fillMaxWidth()),
             shape = MaterialTheme.shapes.large,
             color = Color.Black.copy(alpha = 0.48f),
             contentColor = Color.White
@@ -377,20 +381,16 @@ fun CameraPreview(
                     color = Color.White.copy(alpha = 0.84f),
                     modifier = Modifier.padding(top = 4.dp)
                 )
-                Row(
-                    modifier = Modifier.padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    CheckInOverlayChip(text = stringResource(R.string.camera_ready), icon = Icons.Default.Camera)
-                    CheckInOverlayChip(text = stringResource(R.string.gps_verified), icon = Icons.Default.LocationOn)
-                }
             }
         }
 
         Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 30.dp),
+                .align(if (isLandscape) Alignment.BottomEnd else Alignment.BottomCenter)
+                .padding(
+                    bottom = if (isLandscape) 40.dp else 30.dp,
+                    end = if (isLandscape) 40.dp else 0.dp
+                ),
             contentAlignment = Alignment.Center
         ) {
             Surface(
@@ -436,27 +436,6 @@ fun CameraPreview(
                     modifier = Modifier.size(32.dp)
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun CheckInOverlayChip(
-    text: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
-) {
-    Surface(
-        shape = MaterialTheme.shapes.small,
-        color = Color.White.copy(alpha = 0.14f),
-        contentColor = Color.White
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(text = text, style = MaterialTheme.typography.labelSmall)
         }
     }
 }

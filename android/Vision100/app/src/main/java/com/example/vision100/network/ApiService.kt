@@ -25,6 +25,7 @@ interface ApiService {
 
     @GET("api/objects")
     suspend fun getObjects(
+        @Header("Authorization") token: String,
         @Header("Accept-Language") language: String,
     ): List<TouristObject>
 

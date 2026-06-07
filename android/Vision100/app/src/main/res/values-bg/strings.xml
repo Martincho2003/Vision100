@@ -61,8 +61,12 @@
     <string name="map_view">Карта</string>
     <string name="region_filter">Регион</string>
     <string name="category_filter">Категория</string>
+    <string name="visit_status_filter">Статус</string>
     <string name="all_regions">Всички региони</string>
     <string name="all_categories">Всички категории</string>
+    <string name="all_visit_statuses">Всички</string>
+    <string name="visited_objects">Посетени</string>
+    <string name="unvisited_objects">Непосетени</string>
     <string name="clear_filters">Изчисти филтрите</string>
     <string name="no_objects_found">Няма обекти, които съвпадат с филтрите.</string>
     <string name="objects_count">%1$d обекта</string>
@@ -84,6 +88,8 @@
     <string name="theme_dark">Нощен</string>
 
     <!-- History -->
+    <string name="search_history">Търсене в историята</string>
+    <string name="no_visits_found">Няма посещения, които съвпадат с търсенето.</string>
     <string name="visited_on">Посетено на: %1$s</string>
     <string name="pts_earned">%1$d спечелени точки</string>
     <string name="pts_awarded">%1$d спечелени точки</string>

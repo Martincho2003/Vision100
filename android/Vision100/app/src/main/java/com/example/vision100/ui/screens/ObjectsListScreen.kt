@@ -15,11 +15,16 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -36,7 +41,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -69,10 +79,17 @@ import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.infowindow.InfoWindow
 import org.osmdroid.views.overlay.infowindow.MarkerInfoWindow
+import androidx.core.graphics.drawable.toDrawable
+import androidx.core.graphics.createBitmap
 
 private enum class ObjectsViewMode {
     List,
     Map
+}
+
+private enum class VisitStatusFilter {
+    Visited,
+    Unvisited
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -89,7 +106,27 @@ fun ObjectsListScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedRegion by remember { mutableStateOf<String?>(null) }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
+    var selectedVisitStatus by remember { mutableStateOf<VisitStatusFilter?>(null) }
     var viewMode by remember { mutableStateOf(ObjectsViewMode.List) }
+
+    val listState = rememberLazyListState()
+    var isFilterVisible by remember { mutableStateOf(true) }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (viewMode == ObjectsViewMode.List) {
+                    val delta = available.y
+                    if (delta < -12f && isFilterVisible) {
+                        isFilterVisible = false
+                    } else if (delta > 12f && !isFilterVisible) {
+                        isFilterVisible = true
+                    }
+                }
+                return Offset.Zero
+            }
+        }
+    }
 
     val regions = remember(objects) {
         objects.mapNotNull { it.region?.trim()?.takeIf(String::isNotEmpty) }
@@ -101,7 +138,7 @@ fun ObjectsListScreen(
             .distinct()
             .sorted()
     }
-    val filteredObjects = remember(objects, searchQuery, selectedRegion, selectedCategory) {
+    val filteredObjects = remember(objects, searchQuery, selectedRegion, selectedCategory, selectedVisitStatus) {
         val query = searchQuery.trim()
         objects.filter { obj ->
             val matchesSearch = query.isBlank() || listOfNotNull(
@@ -115,8 +152,13 @@ fun ObjectsListScreen(
 
             val matchesRegion = selectedRegion == null || obj.region?.trim() == selectedRegion
             val matchesCategory = selectedCategory == null || obj.category?.trim() == selectedCategory
+            val matchesVisitStatus = when (selectedVisitStatus) {
+                VisitStatusFilter.Visited -> obj.isVisited == 1
+                VisitStatusFilter.Unvisited -> obj.isVisited != 1
+                null -> true
+            }
 
-            matchesSearch && matchesRegion && matchesCategory
+            matchesSearch && matchesRegion && matchesCategory && matchesVisitStatus
         }
     }
 
@@ -155,25 +197,37 @@ fun ObjectsListScreen(
                         modifier = Modifier.align(Alignment.Center)
                     )
                 } else {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        ObjectsFilterBar(
-                            searchQuery = searchQuery,
-                            onSearchQueryChange = { searchQuery = it },
-                            regions = regions,
-                            selectedRegion = selectedRegion,
-                            onRegionSelected = { selectedRegion = it },
-                            categories = categories,
-                            selectedCategory = selectedCategory,
-                            onCategorySelected = { selectedCategory = it },
-                            viewMode = viewMode,
-                            onViewModeChange = { viewMode = it },
-                            filteredCount = filteredObjects.size,
-                            onClearFilters = {
-                                searchQuery = ""
-                                selectedRegion = null
-                                selectedCategory = null
-                            }
-                        )
+                    Column(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
+                        AnimatedVisibility(
+                            visible = isFilterVisible || viewMode == ObjectsViewMode.Map,
+                            enter = expandVertically(),
+                            exit = shrinkVertically()
+                        ) {
+                            ObjectsFilterBar(
+                                searchQuery = searchQuery,
+                                onSearchQueryChange = { searchQuery = it },
+                                regions = regions,
+                                selectedRegion = selectedRegion,
+                                onRegionSelected = { selectedRegion = it },
+                                categories = categories,
+                                selectedCategory = selectedCategory,
+                                onCategorySelected = { selectedCategory = it },
+                                selectedVisitStatus = selectedVisitStatus,
+                                onVisitStatusSelected = { selectedVisitStatus = it },
+                                viewMode = viewMode,
+                                onViewModeChange = {
+                                    viewMode = it
+                                    isFilterVisible = true
+                                },
+                                filteredCount = filteredObjects.size,
+                                onClearFilters = {
+                                    searchQuery = ""
+                                    selectedRegion = null
+                                    selectedCategory = null
+                                    selectedVisitStatus = null
+                                }
+                            )
+                        }
 
                         if (filteredObjects.isEmpty()) {
                             EmptyObjectsMessage(modifier = Modifier.weight(1f).fillMaxWidth())
@@ -184,7 +238,8 @@ fun ObjectsListScreen(
                                     onObjectClick = { obj ->
                                         openGoogleMaps(context, obj.latitude, obj.longitude, obj.name)
                                     },
-                                    modifier = Modifier.weight(1f).fillMaxWidth()
+                                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                                    state = listState
                                 )
                                 ObjectsViewMode.Map -> ObjectsMap(
                                     objects = filteredObjects,
@@ -210,12 +265,17 @@ private fun ObjectsFilterBar(
     categories: List<String>,
     selectedCategory: String?,
     onCategorySelected: (String?) -> Unit,
+    selectedVisitStatus: VisitStatusFilter?,
+    onVisitStatusSelected: (VisitStatusFilter?) -> Unit,
     viewMode: ObjectsViewMode,
     onViewModeChange: (ObjectsViewMode) -> Unit,
     filteredCount: Int,
     onClearFilters: () -> Unit
 ) {
-    val hasActiveFilters = searchQuery.isNotBlank() || selectedRegion != null || selectedCategory != null
+    val hasActiveFilters = searchQuery.isNotBlank() ||
+            selectedRegion != null ||
+            selectedCategory != null ||
+            selectedVisitStatus != null
 
     Surface(
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
@@ -295,6 +355,11 @@ private fun ObjectsFilterBar(
                     modifier = Modifier.weight(1f)
                 )
             }
+            VisitStatusDropdown(
+                selectedValue = selectedVisitStatus,
+                onSelected = onVisitStatusSelected,
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -314,6 +379,37 @@ private fun ObjectsFilterBar(
             }
         }
     }
+}
+
+@Composable
+private fun VisitStatusDropdown(
+    selectedValue: VisitStatusFilter?,
+    onSelected: (VisitStatusFilter?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val visitedLabel = stringResource(R.string.visited_objects)
+    val unvisitedLabel = stringResource(R.string.unvisited_objects)
+
+    FilterDropdown(
+        label = stringResource(R.string.visit_status_filter),
+        allLabel = stringResource(R.string.all_visit_statuses),
+        options = listOf(visitedLabel, unvisitedLabel),
+        selectedValue = when (selectedValue) {
+            VisitStatusFilter.Visited -> visitedLabel
+            VisitStatusFilter.Unvisited -> unvisitedLabel
+            null -> null
+        },
+        onSelected = { selected ->
+            onSelected(
+                when (selected) {
+                    visitedLabel -> VisitStatusFilter.Visited
+                    unvisitedLabel -> VisitStatusFilter.Unvisited
+                    else -> null
+                }
+            )
+        },
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -382,9 +478,11 @@ private fun FilterDropdown(
 private fun ObjectsList(
     objects: List<TouristObject>,
     onObjectClick: (TouristObject) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    state: LazyListState = rememberLazyListState()
 ) {
     LazyColumn(
+        state = state,
         modifier = modifier,
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -406,7 +504,7 @@ private fun ObjectsMap(
     var currentLocation by remember { mutableStateOf<Location?>(null) }
     val myLocationLabel = stringResource(R.string.my_location)
     val objectSignature = remember(objects) {
-        objects.joinToString("|") { "${it.id}:${it.latitude}:${it.longitude}" }
+        objects.joinToString("|") { "${it.id}:${it.latitude}:${it.longitude}:${it.isVisited}" }
     }
 
     val mapView = remember {
@@ -547,7 +645,8 @@ private fun TouristObject.toObjectMarker(mapView: MapView, context: Context): Ma
         snippet = listOfNotNull(region, category)
             .filter { it.isNotBlank() }
             .joinToString(" / ")
-        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+        icon = createObjectMarkerIcon(context, obj.isVisited)
+        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
 
         infoWindow = object : MarkerInfoWindow(org.osmdroid.library.R.layout.bonuspack_bubble, mapView) {
             @SuppressLint("ClickableViewAccessibility")
@@ -582,11 +681,30 @@ private fun Location.toCurrentLocationMarker(mapView: MapView, titleText: String
     }
 }
 
+private fun createObjectMarkerIcon(context: Context, isVisited: Int): BitmapDrawable {
+    val density = context.resources.displayMetrics.density
+    val size = (24 * density).toInt()
+    val center = size / 2f
+    val bitmap = createBitmap(size, size)
+    val canvas = Canvas(bitmap)
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    val mainColor = if (isVisited == 1) Color.RED else Color.rgb(25, 118, 210)
+
+    paint.color = mainColor
+    canvas.drawCircle(center, center, center - 2f, paint)
+
+    paint.color = Color.WHITE
+    canvas.drawCircle(center, center, center / 2.5f, paint)
+
+    return bitmap.toDrawable(context.resources)
+}
+
 private fun createCurrentLocationIcon(context: Context): BitmapDrawable {
     val density = context.resources.displayMetrics.density
     val size = (34 * density).toInt()
     val center = size / 2f
-    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val bitmap = createBitmap(size, size)
     val canvas = Canvas(bitmap)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -599,7 +717,7 @@ private fun createCurrentLocationIcon(context: Context): BitmapDrawable {
     paint.color = Color.rgb(25, 118, 210)
     canvas.drawCircle(center, center, 6f * density, paint)
 
-    return BitmapDrawable(context.resources, bitmap)
+    return bitmap.toDrawable(context.resources)
 }
 
 private fun Location.toGeoPoint(): GeoPoint {
@@ -655,6 +773,7 @@ fun TouristObjectItem(
     obj: TouristObject,
     onClick: () -> Unit
 ) {
+    val isVisited = obj.isVisited
     val metadata = listOfNotNull(
         obj.region?.trim()?.takeIf(String::isNotEmpty),
         obj.category?.trim()?.takeIf(String::isNotEmpty)
@@ -663,9 +782,15 @@ fun TouristObjectItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            .clickable(onClick = onClick)
+            .alpha(if (isVisited == 1) 0.64f else 1f),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isVisited == 1)
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            else
+                MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isVisited == 1) 0.dp else 1.dp)
     ) {
         Column {
             FlagAccentBar(height = 3.dp)

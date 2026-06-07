@@ -13,6 +13,7 @@ class TouristObjectBase(BaseModel):
 
 class TouristObjectResponse(TouristObjectBase):
     id: int
+    is_visited: int = 0
 
     class Config:
         from_attributes = True

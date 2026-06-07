@@ -45,19 +45,35 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.get("/health", tags=["System"])
 def health_check(accept_language: Optional[str] = Header(None)):
-    """Проверка дали сървърът работи."""
     logger.info("Health check requested")
     return {"status": "ok", "message": get_text(accept_language, "health_ok")}
 
 @app.get("/api/objects", response_model=List[schemas.TouristObjectResponse], tags=["Tourist Objects"])
-def get_tourist_objects(skip: int = 0, limit: int = 250, db: Session = Depends(get_db), accept_language: Optional[str] = Header(None)):
-    """Връща списък с всички туристически обекти."""
-    logger.info("Fetching tourist objects. skip=%s limit=%s", skip, limit)
+def get_tourist_objects(
+    skip: int = 0,
+    limit: int = 250,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    accept_language: Optional[str] = Header(None),
+):
+    logger.info("Fetching tourist objects. user_id=%s skip=%s limit=%s", current_user.id, skip, limit)
     logger.info("Accept-Language header: %s", accept_language)
     objects = db.query(TouristObject).offset(skip).limit(limit).all()
+    visited_object_ids = {
+        object_id
+        for (object_id,) in db.query(Visit.object_id)
+        .filter(
+            Visit.user_id == current_user.id,
+            Visit.is_verified.is_(True),
+        )
+        .distinct()
+        .all()
+    }
     logger.info("Fetched tourist objects count=%s", len(objects))
-    from app.translations import localize_tourist_object
-    return [localize_tourist_object(obj, accept_language) for obj in objects]
+    return [
+        localize_tourist_object(obj, accept_language, 1 if obj.id in visited_object_ids else 0)
+        for obj in objects
+    ]
 
 
 @app.get("/api/visits/{visit_id}/photo", tags=["Visits"])
@@ -66,7 +82,6 @@ def get_visit_photo(
     db: Session = Depends(get_db),
     accept_language: Optional[str] = Header(None)
 ):
-    """Връща реалната снимка (бинарния файл) за дадено посещение."""
     visit = db.query(Visit).filter(Visit.id == visit_id).first()
     if not visit or not visit.photo_url:
         raise HTTPException(

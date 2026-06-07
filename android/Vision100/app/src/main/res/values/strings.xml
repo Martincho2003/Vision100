@@ -62,8 +62,12 @@
     <string name="map_view">Map</string>
     <string name="region_filter">Region</string>
     <string name="category_filter">Category</string>
+    <string name="visit_status_filter">Visit status</string>
     <string name="all_regions">All regions</string>
     <string name="all_categories">All categories</string>
+    <string name="all_visit_statuses">All statuses</string>
+    <string name="visited_objects">Visited</string>
+    <string name="unvisited_objects">Unvisited</string>
     <string name="clear_filters">Clear filters</string>
     <string name="no_objects_found">No objects match your filters.</string>
     <string name="objects_count">%1$d objects</string>
@@ -85,6 +89,8 @@
     <string name="theme_dark">Dark</string>
 
     <!-- History -->
+    <string name="search_history">Search history</string>
+    <string name="no_visits_found">No visits match your search.</string>
     <string name="visited_on">Visited on: %1$s</string>
     <string name="pts_earned">%1$d pts earned</string>
     <string name="pts_awarded">%1$d pts awarded</string>

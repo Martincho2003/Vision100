@@ -8,10 +8,6 @@ INPUT_FILE = "100_nto_bilingual.json"
 OUTPUT_FILE = "100_nto_bilingual_updated.json"
 
 def get_coordinates(query):
-    """
-    Търси координати чрез OpenStreetMap (Nominatim) API.
-    Nominatim е безплатно, но изисква User-Agent и максимум 1 заявка в секунда.
-    """
     url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(query)}&format=json&limit=1"
     
     # Nominatim изисква персонализиран User-Agent

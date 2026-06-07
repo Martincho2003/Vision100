@@ -5,6 +5,7 @@ import com.example.vision100.network.ApiService
 
 class ObjectRepository(private val apiService: ApiService) {
     suspend fun getTouristObjects(): List<TouristObject> {
-        return apiService.getObjects(ApiService.getLanguageHeader())
+        val token = ApiService.getAuthHeader()
+        return apiService.getObjects(token, ApiService.getLanguageHeader())
     }
 }

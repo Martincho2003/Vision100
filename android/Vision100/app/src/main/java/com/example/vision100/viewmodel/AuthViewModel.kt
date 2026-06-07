@@ -27,6 +27,11 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
         _errorMessage.value = null
     }
 
+    fun setError(message: String) {
+        _isLoading.value = false
+        _errorMessage.value = message
+    }
+
     fun sendPasswordResetEmail(email: String, onComplete: (String?) -> Unit) {
         _isLoading.value = true
         _errorMessage.value = null

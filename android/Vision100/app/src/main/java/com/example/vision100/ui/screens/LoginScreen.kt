@@ -25,6 +25,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
 import com.example.vision100.R
 import com.example.vision100.ui.components.FlagAccentBar
 import com.example.vision100.ui.components.VisionBackground
@@ -57,6 +59,8 @@ fun LoginScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val enterEmailMessage = stringResource(R.string.enter_email_for_reset)
     val resetEmailSentMessage = stringResource(R.string.password_reset_email_sent)
+    val googleSignInCancelledMessage = stringResource(R.string.google_signin_cancelled)
+    val googleSignInFailedMessage = stringResource(R.string.google_signin_failed)
 
     LaunchedEffect(isFullyAuthenticated) {
         if (isFullyAuthenticated) {
@@ -68,7 +72,7 @@ fun LoginScreen(
         viewModel.clearError()
         val googleIdOption = GetGoogleIdOption.Builder()
             .setFilterByAuthorizedAccounts(false)
-            .setServerClientId("932457770837-7g5jql83jmp8v1iv1hmf43c0v5cgeob1.apps.googleusercontent.com")
+            .setServerClientId(context.getString(R.string.default_web_client_id))
             .build()
 
         val request = GetCredentialRequest.Builder()
@@ -83,9 +87,15 @@ fun LoginScreen(
                     val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
                     val firebaseCredential = GoogleAuthProvider.getCredential(googleIdTokenCredential.idToken, null)
                     viewModel.signInWithCredential(firebaseCredential)
+                } else {
+                    viewModel.setError(googleSignInFailedMessage)
                 }
+            } catch (e: GetCredentialCancellationException) {
+                viewModel.setError(googleSignInCancelledMessage)
+            } catch (e: GetCredentialException) {
+                viewModel.setError(e.localizedMessage ?: googleSignInFailedMessage)
             } catch (e: Exception) {
-
+                viewModel.setError(e.localizedMessage ?: googleSignInFailedMessage)
             }
         }
     }

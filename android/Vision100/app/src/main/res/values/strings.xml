@@ -1,7 +1,5 @@
 <resources>
     <string name="app_name">Vision100</string>
-    <string name="default_web_client_id">932457770837-7g5jql83jmp8v1iv1hmf43c0v5cgeob1.apps.googleusercontent.com</string>
-
     <!-- Auth -->
     <string name="login_title">Welcome to Vision100</string>
     <string name="login_subtitle">Please log in to continue</string>

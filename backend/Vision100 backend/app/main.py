@@ -105,7 +105,6 @@ async def verify_check_in(
     latitude: float = Form(...),
     longitude: float = Form(...),
     gps_accuracy: Optional[float] = Form(None),
-    object_id: Optional[int] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     accept_language: Optional[str] = Header(None),
@@ -138,34 +137,19 @@ async def verify_check_in(
         
     photo_url_path = f"/uploads/{saved_filename}"
 
-    if object_id is not None:
-        tourist_object = db.query(TouristObject).filter(TouristObject.id == object_id).first()
-        if not tourist_object:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=get_text(accept_language, "tourist_object_not_found"))
-        distance = distance_meters(latitude, longitude, tourist_object.latitude, tourist_object.longitude)
-        candidates = (
-            [(tourist_object, distance)]
-            if distance <= effective_radius(tourist_object, gps_accuracy)
-            else []
-        )
-        candidate_for_response = tourist_object
-        distance_for_response = distance
-        radius_for_response = effective_radius(tourist_object, gps_accuracy)
-    else:
-        all_objects = db.query(TouristObject).all()
-        candidates = nearby_objects(all_objects, latitude, longitude, gps_accuracy)
-        candidate_for_response = candidates[0][0] if candidates else None
-        distance_for_response = candidates[0][1] if candidates else None
-        radius_for_response = (
-            effective_radius(candidates[0][0], gps_accuracy)
-            if candidates
-            else None
-        )
+    all_objects = db.query(TouristObject).all()
+    candidates = nearby_objects(all_objects, latitude, longitude, gps_accuracy)
+    candidate_for_response = candidates[0][0] if candidates else None
+    distance_for_response = candidates[0][1] if candidates else None
+    radius_for_response = (
+        effective_radius(candidates[0][0], gps_accuracy)
+        if candidates
+        else None
+    )
 
     logger.info("GPS candidates found: %s", len(candidates))
 
     if candidate_for_response:
-        # Проверка за верифициран обект
         verified_visit = db.query(Visit).filter(
             Visit.user_id == current_user.id,
             Visit.object_id == candidate_for_response.id,
@@ -173,7 +157,6 @@ async def verify_check_in(
         ).first()
 
         if verified_visit:
-            # Изтриваме временно запазения файл, тъй като нямаме нужда от него
             try:
                 os.remove(file_path)
             except OSError:
@@ -196,7 +179,6 @@ async def verify_check_in(
                 detections=[],
             )
 
-        # Проверка за брой неверифицирани опити
         unverified_count = db.query(Visit).filter(
             Visit.user_id == current_user.id,
             Visit.object_id == candidate_for_response.id,
@@ -204,7 +186,6 @@ async def verify_check_in(
         ).count()
 
         if unverified_count >= 5:
-            # Изтриваме временно запазения файл
             try:
                 os.remove(file_path)
             except OSError:
@@ -329,7 +310,6 @@ async def verify_check_in(
 
     tourist_object = best_match.tourist_object
     
-    # В случай, че AI е избрал друг обект от candidates, различен от основния
     verified_visit = (
         db.query(Visit)
         .filter(Visit.user_id == current_user.id, Visit.object_id == tourist_object.id, Visit.is_verified == True)
@@ -428,7 +408,8 @@ def sync_user(
 ):
     uid = token_data.get("uid")
     email = token_data.get("email")
-    logger.info("Sync requested. uid=%s email=%s display_name=%s avatar_present=%s", uid, email, user_data.display_name, bool(user_data.avatar_url))
+    sign_in_provider = token_data.get("firebase", {}).get("sign_in_provider", "")
+    logger.info("Sync requested. uid=%s email=%s provider=%s display_name=%s", uid, email, sign_in_provider, user_data.display_name)
     
     user = db.query(User).filter(User.firebase_uid == uid).first()
     
@@ -438,11 +419,11 @@ def sync_user(
         if user_data.avatar_url:
             user.avatar_url = user_data.avatar_url
     else:
-        requested_name = user_data.display_name
-        final_name = requested_name or token_data.get("name", "Unknown User")
-        logger.info("Creating new user. requested_name=%s google_name=%s", requested_name, token_data.get("name"))
+        requested_name = user_data.display_name.strip() if user_data.display_name else None
+        final_name = (requested_name or token_data.get("name", "Unknown User")).strip()
+        logger.info("Creating new user. final_name=%s provider=%s", final_name, sign_in_provider)
         
-        if requested_name:
+        if sign_in_provider == "password":
             if db.query(User).filter(User.display_name == final_name).first():
                 logger.warning("Requested display_name already taken. display_name=%s", final_name)
                 try:
@@ -453,12 +434,14 @@ def sync_user(
                     logger.error("Failed to delete user %s from Firebase Auth: %s", uid, e)
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username is already taken. Please choose another one.")
         else:
-            base_name = final_name
-            counter = 1
-            while db.query(User).filter(User.display_name == final_name).first():
+            base_name = final_name[:90]
+            counter = 2
+            if db.query(User).filter(User.display_name == final_name).first():
                 logger.info("Auto-adjusting Google display_name because it is taken. current_name=%s", final_name)
                 final_name = f"{base_name} {counter}"
-                counter += 1
+                while db.query(User).filter(User.display_name == final_name).first():
+                    counter += 1
+                    final_name = f"{base_name} {counter}"
 
         final_avatar = user_data.avatar_url or token_data.get("picture", "")
         

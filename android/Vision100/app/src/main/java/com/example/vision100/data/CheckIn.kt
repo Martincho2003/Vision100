@@ -30,7 +30,6 @@ data class LeaderboardUser(
 
 data class VisitResponse(
     val id: Int,
-    @SerializedName("object_id") val objectId: Int,
     @SerializedName("points_awarded") val pointsAwarded: Int,
     @SerializedName("photo_url") val photoUrl: String?,
     val latitude: Double,

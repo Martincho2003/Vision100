@@ -78,7 +78,7 @@ class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
     }
 
     @SuppressLint("MissingPermission")
-    fun verifyCheckIn(context: Context, photoUri: Uri, objectId: Int? = null) {
+    fun verifyCheckIn(context: Context, photoUri: Uri) {
         if (_isLoading.value) return
 
         val appContext = context.applicationContext
@@ -121,14 +121,13 @@ class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
                 val lat = location.latitude.toString().toRequestBody("text/plain".toMediaTypeOrNull())
                 val lon = location.longitude.toString().toRequestBody("text/plain".toMediaTypeOrNull())
                 val acc = location.accuracy.toString().toRequestBody("text/plain".toMediaTypeOrNull())
-                val objId = objectId?.toString()?.toRequestBody("text/plain".toMediaTypeOrNull())
 
                 Log.d(TAG, "Sending multipart request to /api/checkins/verify...")
                 val token = ApiService.getAuthHeader()
                 val lang = ApiService.getLanguageHeader()
                 
                 val response = withTimeout(CHECK_IN_SERVER_TIMEOUT_MS) {
-                    apiService.verifyCheckIn(token, lang, body, lat, lon, acc, objId)
+                    apiService.verifyCheckIn(token, lang, body, lat, lon, acc)
                 }
                 
                 Log.i(TAG, "Check-in response received: verified=${response.verified}, reason='${response.reason}'")

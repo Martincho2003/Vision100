@@ -11,21 +11,29 @@ import androidx.lifecycle.viewModelScope
 import com.example.vision100.R
 import com.example.vision100.data.CheckInResponse
 import com.example.vision100.network.ApiService
+import com.example.vision100.notifications.CheckInNotifier
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.HttpException
+import java.io.IOException
 import java.io.File
 import java.io.FileOutputStream
+import java.net.SocketTimeoutException
 
 private const val TAG = "CheckInViewModel"
+private const val CHECK_IN_SERVER_TIMEOUT_MS = 60_000L
 
 class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
+    private var notifyWhenCompleted = false
 
     private val _isLoading = mutableStateOf(false)
     val isLoading: State<Boolean> = _isLoading
@@ -46,7 +54,10 @@ class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
         _checkInResult.value = null
         _errorMessage.value = null
         _isMockLocation.value = false
-        _isLocationChecked.value = false
+    }
+
+    fun setNotifyWhenCompleted(enabled: Boolean) {
+        notifyWhenCompleted = enabled
     }
 
     @SuppressLint("MissingPermission")
@@ -68,20 +79,24 @@ class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
 
     @SuppressLint("MissingPermission")
     fun verifyCheckIn(context: Context, photoUri: Uri, objectId: Int? = null) {
+        if (_isLoading.value) return
+
+        val appContext = context.applicationContext
         _isLoading.value = true
         _errorMessage.value = null
+        _checkInResult.value = null
         Log.d(TAG, "Starting Smart Check-in process...")
 
         viewModelScope.launch {
             try {
                 Log.d(TAG, "Requesting GPS location...")
-                val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+                val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
                 val location = fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null).await()
                 
                 if (location == null) {
                     Log.e(TAG, "Failed to obtain GPS location (null)")
                     _isLoading.value = false
-                    _errorMessage.value = context.getString(R.string.gps_error)
+                    _errorMessage.value = appContext.getString(R.string.gps_error)
                     return@launch
                 }
 
@@ -90,7 +105,7 @@ class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
                     Log.e(TAG, "Mock location detected during verification!")
                     _isMockLocation.value = true
                     _isLoading.value = false
-                    _errorMessage.value = context.getString(R.string.mock_location_detected)
+                    _errorMessage.value = appContext.getString(R.string.mock_location_detected)
                     return@launch
                 }
                 */
@@ -98,7 +113,7 @@ class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
                 Log.d(TAG, "GPS Location obtained: Lat=${location.latitude}, Lon=${location.longitude}, Acc=${location.accuracy}")
 
                 Log.d(TAG, "Preparing photo file from URI: $photoUri")
-                val file = uriToFile(context, photoUri)
+                val file = uriToFile(appContext, photoUri)
                 Log.d(TAG, "File created at: ${file.absolutePath}, size: ${file.length()} bytes")
                 val requestFile = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
                 val body = MultipartBody.Part.createFormData("photo", file.name, requestFile)
@@ -112,7 +127,9 @@ class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
                 val token = ApiService.getAuthHeader()
                 val lang = ApiService.getLanguageHeader()
                 
-                val response = apiService.verifyCheckIn(token, lang, body, lat, lon, acc, objId)
+                val response = withTimeout(CHECK_IN_SERVER_TIMEOUT_MS) {
+                    apiService.verifyCheckIn(token, lang, body, lat, lon, acc, objId)
+                }
                 
                 Log.i(TAG, "Check-in response received: verified=${response.verified}, reason='${response.reason}'")
                 if (!response.verified) {
@@ -120,18 +137,54 @@ class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
                 } else {
                     _checkInResult.value = response
                 }
-                _isLoading.value = false
+                notifyIfNeeded(appContext, response = response)
+            } catch (e: TimeoutCancellationException) {
+                val message = appContext.getString(R.string.checkin_timeout_message)
+                Log.e(TAG, "Check-in timed out after ${CHECK_IN_SERVER_TIMEOUT_MS}ms", e)
+                _errorMessage.value = message
+                notifyIfNeeded(appContext, message = message)
             } catch (e: HttpException) {
                 val errorMsg = ApiService.parseError(e)
                 Log.e(TAG, "HTTP error during check-in: code=${e.code()}, message='$errorMsg'")
-                _isLoading.value = false
                 _errorMessage.value = errorMsg
+                notifyIfNeeded(appContext, message = errorMsg)
+            } catch (e: SocketTimeoutException) {
+                val message = appContext.getString(R.string.checkin_timeout_message)
+                Log.e(TAG, "Socket timeout during check-in", e)
+                _errorMessage.value = message
+                notifyIfNeeded(appContext, message = message)
+            } catch (e: CancellationException) {
+                Log.i(TAG, "Check-in verification cancelled")
+                throw e
+            } catch (e: IOException) {
+                val errorMsg = ApiService.parseError(e)
+                Log.e(TAG, "Network error during check-in", e)
+                _errorMessage.value = errorMsg
+                notifyIfNeeded(appContext, message = errorMsg)
             } catch (e: Exception) {
                 Log.e(TAG, "Unexpected exception during check-in", e)
+                val message = appContext.getString(R.string.verification_failed_prefix, e.localizedMessage)
+                _errorMessage.value = message
+                notifyIfNeeded(appContext, message = message)
+            } finally {
                 _isLoading.value = false
-                _errorMessage.value = context.getString(R.string.verification_failed_prefix, e.localizedMessage)
             }
         }
+    }
+
+    private fun notifyIfNeeded(
+        context: Context,
+        response: CheckInResponse? = null,
+        message: String? = null
+    ) {
+        if (!notifyWhenCompleted) return
+
+        if (response != null) {
+            CheckInNotifier.showResult(context, response)
+        } else if (message != null) {
+            CheckInNotifier.showProblem(context, message)
+        }
+        notifyWhenCompleted = false
     }
 
     private fun uriToFile(context: Context, uri: Uri): File {

@@ -9,7 +9,6 @@ import com.example.vision100.data.UserResponse
 import com.example.vision100.network.ApiService
 import com.example.vision100.repository.AuthRepository
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
 
 class ProfileViewModel(
     private val apiService: ApiService,
@@ -41,16 +40,14 @@ class ProfileViewModel(
                 val lang = ApiService.getLanguageHeader()
                 _userData.value = apiService.getMe(token, lang)
                 _isLoading.value = false
-            } catch (e: HttpException) {
-                _isLoading.value = false
-                if (e.code() == 401) {
-                    _sessionExpired.value = true
-                } else {
-                    _errorMessage.value = ApiService.parseError(e)
-                }
             } catch (e: Exception) {
                 _isLoading.value = false
-                _errorMessage.value = "Connection error"
+                val errorMsg = ApiService.parseError(e)
+                if (e is retrofit2.HttpException && e.code() == 401) {
+                    _sessionExpired.value = true
+                } else {
+                    _errorMessage.value = errorMsg
+                }
             }
         }
     }
@@ -62,10 +59,8 @@ class ProfileViewModel(
                 val lang = ApiService.getLanguageHeader()
                 _userData.value = apiService.updateName(token, lang, UpdateNameRequest(newName))
                 onComplete(null)
-            } catch (e: HttpException) {
-                onComplete(ApiService.parseError(e))
             } catch (e: Exception) {
-                onComplete("Update failed")
+                onComplete(ApiService.parseError(e))
             }
         }
     }

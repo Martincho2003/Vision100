@@ -13,7 +13,7 @@ def seed():
         updated = 0
         
         for data in raw_objects:
-            obj_number = int(data.get('number', 0))
+            obj_number = str(data.get('number', 0))
             name = str(data['name_bg'])
             existing = db.query(TouristObject).filter_by(name_bg=name).first()
             

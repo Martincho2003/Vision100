@@ -10,7 +10,6 @@ import com.google.firebase.auth.AuthCredential
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
 
 class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
@@ -63,7 +62,7 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
                     }
             } catch (e: Exception) {
                 _isLoading.value = false
-                _errorMessage.value = if (e is HttpException) ApiService.parseError(e) else "Server unreachable"
+                _errorMessage.value = ApiService.parseError(e)
             }
         }
     }
@@ -86,7 +85,7 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
                 }
             } catch (e: Exception) {
                 _isLoading.value = false
-                _errorMessage.value = if (e is HttpException) ApiService.parseError(e) else "Server unreachable"
+                _errorMessage.value = ApiService.parseError(e)
             }
         }
     }
@@ -99,7 +98,7 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
                 _isFullyAuthenticated.value = true
             } catch (e: Exception) {
                 _isLoading.value = false
-                _errorMessage.value = if (e is HttpException) ApiService.parseError(e) else "Sync failed"
+                _errorMessage.value = ApiService.parseError(e)
                 repository.signOut()
                 _isFullyAuthenticated.value = false
             }
@@ -137,7 +136,7 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
                     }
             } catch (e: Exception) {
                 _isLoading.value = false
-                _errorMessage.value = if (e is HttpException) ApiService.parseError(e) else "Server unreachable"
+                _errorMessage.value = ApiService.parseError(e)
             }
         }
     }
@@ -150,7 +149,7 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
                 _isFullyAuthenticated.value = true
             } catch (e: Exception) {
                 _isLoading.value = false
-                _errorMessage.value = if (e is HttpException) ApiService.parseError(e) else "Sync failed"
+                _errorMessage.value = ApiService.parseError(e)
                 val user = auth.currentUser
                 user?.delete()?.addOnCompleteListener {
                     repository.signOut()

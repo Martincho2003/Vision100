@@ -112,6 +112,11 @@
     <string name="verifying_visit">Verifying visit...</string>
     <string name="mock_location_detected">Mock location detected. Please disable GPS simulation apps.</string>
     <string name="back">Back</string>
+    <string name="checkin_timeout_message">The verification is taking too long. We could not confirm the result from this request. Check your progress later or try again.</string>
+    <string name="checkin_notification_channel">Check-in results</string>
+    <string name="checkin_notification_channel_description">Notifications for completed Smart Check-in verifications.</string>
+    <string name="checkin_notification_success_body">%1$s was verified. You earned %2$d points.</string>
+    <string name="checkin_notification_problem_title">Check-in needs attention</string>
 
     <!-- Errors -->
     <string name="error_title">Error</string>

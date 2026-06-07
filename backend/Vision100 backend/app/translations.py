@@ -12,6 +12,7 @@ TRANSLATIONS = {
         "ai_no_useful_labels": "Изкуственият интелект не откри полезни обекти или забележителности в снимката.",
         "ai_not_match": "Резултатът от AI не съвпада с туристическия обект близо до изпратената GPS локация.",
         "already_verified": "Туристическият обект вече е верифициран от този потребител.",
+        "max_attempts_reached": "Достигнахте максималния брой опити за този обект. Администратор ще прегледа снимките ви ръчно за одобрение.",
         "visit_verified": "Посещението е верифицирано успешно."
     },
     "en": {
@@ -27,6 +28,7 @@ TRANSLATIONS = {
         "ai_no_useful_labels": "AI did not detect useful labels or landmarks in the image.",
         "ai_not_match": "AI result does not match the tourist object near the submitted GPS location.",
         "already_verified": "Tourist object is already verified for this user.",
+        "max_attempts_reached": "You have reached the maximum number of attempts for this object. An administrator will review your photos manually.",
         "visit_verified": "Visit verified successfully."
     }
 }

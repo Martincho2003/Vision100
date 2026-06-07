@@ -149,6 +149,57 @@ async def verify_check_in(
 
     logger.info("GPS candidates found: %s", len(candidates))
 
+    if candidate_for_response:
+        # Проверка за верифициран обект
+        verified_visit = db.query(Visit).filter(
+            Visit.user_id == current_user.id,
+            Visit.object_id == candidate_for_response.id,
+            Visit.is_verified == True
+        ).first()
+
+        if verified_visit:
+            # Изтриваме временно запазения файл, тъй като нямаме нужда от него
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+                
+            return schemas.CheckInResponse(
+                verified=True,
+                reason=get_text(accept_language, "already_verified"),
+                object=localize_tourist_object(candidate_for_response, accept_language),
+                visit=localize_visit(verified_visit, accept_language),
+                already_visited=True,
+                points_awarded=0,
+                total_points=current_user.total_points,
+                distance_meters=distance_for_response,
+                effective_radius_meters=radius_for_response,
+                ai_confidence=verified_visit.ai_confidence,
+                ai_match_score=None,
+                ai_matched_label=verified_visit.ai_matched_label,
+                ai_detected_label=verified_visit.ai_matched_label,
+                detections=[],
+            )
+
+        # Проверка за брой неверифицирани опити
+        unverified_count = db.query(Visit).filter(
+            Visit.user_id == current_user.id,
+            Visit.object_id == candidate_for_response.id,
+            Visit.is_verified == False
+        ).count()
+
+        if unverified_count >= 5:
+            # Изтриваме временно запазения файл
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+                
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=get_text(accept_language, "max_attempts_reached")
+            )
+
     if not candidates:
         logger.info(
             "Check-in rejected by GPS. user_id=%s object_id=%s lat=%s lon=%s",
@@ -182,7 +233,7 @@ async def verify_check_in(
 
     try:
         logger.info("Sending photo to Vision API for analysis...")
-        detections = analyze_image(image_bytes, filename=photo.filename)
+        detections = analyze_image(image_bytes, filename=photo.filename, lat=latitude, lng=longitude)
         logger.info("Vision API successfully returned %s preliminary detections.", len(detections))
     except VisionServiceError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=get_text(accept_language, "vision_service_error"))
@@ -262,19 +313,21 @@ async def verify_check_in(
         )
 
     tourist_object = best_match.tourist_object
-    existing_visit = (
+    
+    # В случай, че AI е избрал друг обект от candidates, различен от основния
+    verified_visit = (
         db.query(Visit)
-        .filter(Visit.user_id == current_user.id, Visit.object_id == tourist_object.id)
+        .filter(Visit.user_id == current_user.id, Visit.object_id == tourist_object.id, Visit.is_verified == True)
         .first()
     )
 
-    if existing_visit and existing_visit.is_verified:
+    if verified_visit:
         logger.info("Check-in verified: user_id=%s already has points for object_id=%s.", current_user.id, tourist_object.id)
         return schemas.CheckInResponse(
             verified=True,
             reason=get_text(accept_language, "already_verified"),
             object=localize_tourist_object(tourist_object, accept_language),
-            visit=localize_visit(existing_visit, accept_language),
+            visit=localize_visit(verified_visit, accept_language),
             already_visited=True,
             points_awarded=0,
             total_points=current_user.total_points,
@@ -287,30 +340,19 @@ async def verify_check_in(
             detections=detection_response,
         )
 
-    if existing_visit:
-        visit = existing_visit
-        visit.latitude = latitude
-        visit.longitude = longitude
-        visit.gps_accuracy = gps_accuracy
-        visit.ai_confidence = best_match.ai_confidence
-        visit.ai_matched_label = best_match.matched_detection
-        visit.photo_url = photo_url_path
-        visit.is_verified = True
-        visit.points_awarded = POINTS_PER_VISIT
-    else:
-        visit = Visit(
-            user_id=current_user.id,
-            object_id=tourist_object.id,
-            latitude=latitude,
-            longitude=longitude,
-            gps_accuracy=gps_accuracy,
-            ai_confidence=best_match.ai_confidence,
-            ai_matched_label=best_match.matched_detection,
-            photo_url=photo_url_path,
-            is_verified=True,
-            points_awarded=POINTS_PER_VISIT,
-        )
-        db.add(visit)
+    visit = Visit(
+        user_id=current_user.id,
+        object_id=tourist_object.id,
+        latitude=latitude,
+        longitude=longitude,
+        gps_accuracy=gps_accuracy,
+        ai_confidence=best_match.ai_confidence,
+        ai_matched_label=best_match.matched_detection,
+        photo_url=photo_url_path,
+        is_verified=True,
+        points_awarded=POINTS_PER_VISIT,
+    )
+    db.add(visit)
 
     current_user.total_points += POINTS_PER_VISIT
     db.commit()

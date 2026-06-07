@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.vision100.data.VisitResponse
 import com.example.vision100.network.ApiService
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
 
 class HistoryViewModel(private val apiService: ApiService) : ViewModel() {
     
@@ -29,12 +28,9 @@ class HistoryViewModel(private val apiService: ApiService) : ViewModel() {
                 val lang = ApiService.getLanguageHeader()
                 _visits.value = apiService.getMyVisits(token, lang)
                 _isLoading.value = false
-            } catch (e: HttpException) {
-                _isLoading.value = false
-                _errorMessage.value = ApiService.parseError(e)
             } catch (e: Exception) {
                 _isLoading.value = false
-                _errorMessage.value = "Failed to load history"
+                _errorMessage.value = ApiService.parseError(e)
             }
         }
     }

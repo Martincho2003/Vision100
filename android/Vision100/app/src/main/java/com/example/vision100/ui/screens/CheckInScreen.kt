@@ -1,9 +1,14 @@
 package com.example.vision100.ui.screens
 
 import android.Manifest
+import android.os.Build
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Log
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -43,6 +48,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.vision100.R
 import com.example.vision100.data.CheckInResponse
@@ -66,6 +73,7 @@ fun CheckInScreen(
     val isLocationChecked by viewModel.isLocationChecked
     val checkInResult by viewModel.checkInResult
     val errorMessage by viewModel.errorMessage
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     var hasCameraPermission by remember { 
         mutableStateOf(
@@ -87,28 +95,51 @@ fun CheckInScreen(
                                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true)
     }
 
-    LaunchedEffect(Unit) {
-        permissionLauncher.launch(
-            arrayOf(
-                Manifest.permission.CAMERA,
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            )
-        )
+    DisposableEffect(Unit) {
+        val activity = context.findActivity()
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        onDispose {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
     }
 
-    LaunchedEffect(hasLocationPermission) {
-        if (hasLocationPermission) {
+    LaunchedEffect(Unit) {
+        permissionLauncher.launch(checkInPermissions())
+    }
+
+    LaunchedEffect(hasLocationPermission, isLocationChecked) {
+        if (hasLocationPermission && !isLocationChecked) {
             viewModel.checkMockLocation(context)
         }
     }
 
-    BackHandler {
-        if (checkInResult != null || errorMessage != null) {
+    DisposableEffect(lifecycleOwner, isLoading) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> viewModel.setNotifyWhenCompleted(false)
+                Lifecycle.Event.ON_STOP -> viewModel.setNotifyWhenCompleted(isLoading)
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    fun requestNavigateBack() {
+        if (isLoading) {
+            viewModel.setNotifyWhenCompleted(true)
+            onNavigateBack()
+        } else if (checkInResult != null || errorMessage != null) {
             viewModel.clearResult()
         } else {
             onNavigateBack()
         }
+    }
+
+    BackHandler {
+        requestNavigateBack()
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -125,11 +156,7 @@ fun CheckInScreen(
                 Button(
                     onClick = {
                         permissionLauncher.launch(
-                            arrayOf(
-                                Manifest.permission.CAMERA,
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            )
+                            checkInPermissions()
                         )
                     },
                     modifier = Modifier.padding(top = 8.dp)
@@ -162,7 +189,7 @@ fun CheckInScreen(
             }
         } else {
             CameraPreview(
-                onNavigateBack = onNavigateBack,
+                onNavigateBack = { requestNavigateBack() },
                 onPhotoCaptured = { uri ->
                     viewModel.verifyCheckIn(context, uri)
                 }
@@ -207,12 +234,22 @@ fun CheckInScreen(
                 confirmButton = {
                     Button(onClick = { 
                         viewModel.clearResult()
-                        onNavigateBack()
                     }) { Text(stringResource(R.string.ok)) }
                 }
             )
         }
     }
+}
+
+private fun checkInPermissions(): Array<String> {
+    return buildList {
+        add(Manifest.permission.CAMERA)
+        add(Manifest.permission.ACCESS_FINE_LOCATION)
+        add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }.toTypedArray()
 }
 
 @Composable
@@ -494,4 +531,10 @@ fun CheckInResultDialog(result: CheckInResponse, onDismiss: () -> Unit) {
             Button(onClick = onDismiss) { Text(stringResource(R.string.awesome)) }
         }
     )
+}
+
+fun Context.findActivity(): ComponentActivity? = when (this) {
+    is ComponentActivity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

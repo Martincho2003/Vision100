@@ -113,10 +113,10 @@ def text_similarity(left: str, right: str) -> float:
     return SequenceMatcher(None, left_norm, right_norm).ratio()
 
 
-def analyze_image(image_bytes: bytes, filename: Optional[str] = None) -> list[Detection]:
+def analyze_image(image_bytes: bytes, filename: Optional[str] = None, lat: Optional[float] = None, lng: Optional[float] = None) -> list[Detection]:
     if AI_PROVIDER == "mock":
         return _mock_detections(filename)
-    return _google_vision_detections(image_bytes)
+    return _google_vision_detections(image_bytes, lat, lng)
 
 
 def _mock_detections(filename: Optional[str]) -> list[Detection]:
@@ -127,7 +127,7 @@ def _mock_detections(filename: Optional[str]) -> list[Detection]:
     return [Detection(label=label, score=0.99, source="mock")]
 
 
-def _google_vision_detections(image_bytes: bytes) -> list[Detection]:
+def _google_vision_detections(image_bytes: bytes, lat: Optional[float] = None, lng: Optional[float] = None) -> list[Detection]:
     try:
         from google.cloud import vision
     except ImportError as exc:
@@ -138,12 +138,24 @@ def _google_vision_detections(image_bytes: bytes) -> list[Detection]:
     try:
         client = vision.ImageAnnotatorClient()
         image = vision.Image(content=image_bytes)
+        
+        image_context = None
+        if lat is not None and lng is not None:
+            delta = 0.005
+            lat_long_rect = vision.LatLongRect(
+                min_lat_lng={"latitude": lat - delta, "longitude": lng - delta},
+                max_lat_lng={"latitude": lat + delta, "longitude": lng + delta},
+            )
+            image_context = vision.ImageContext(lat_long_rect=lat_long_rect)
+
         request = vision.AnnotateImageRequest(
             image=image,
+            image_context=image_context,
             features=[
                 vision.Feature(type_=vision.Feature.Type.LANDMARK_DETECTION, max_results=10),
                 vision.Feature(type_=vision.Feature.Type.LABEL_DETECTION, max_results=20),
                 vision.Feature(type_=vision.Feature.Type.WEB_DETECTION, max_results=10),
+                vision.Feature(type_=vision.Feature.Type.TEXT_DETECTION),
             ],
         )
         response = client.annotate_image(request=request)
@@ -166,6 +178,14 @@ def _google_vision_detections(image_bytes: bytes) -> list[Detection]:
         for entity in response.web_detection.web_entities:
             if entity.description:
                 detections.append(Detection(entity.description, float(entity.score or 0.0), "web_entity"))
+
+    if response.text_annotations:
+        full_text = response.text_annotations[0].description
+        if full_text:
+            for line in full_text.split('\n'):
+                line = line.strip()
+                if line:
+                    detections.append(Detection(line, 0.85, "text"))
 
     logger.info(f"Google Vision API returned {len(detections)} raw detections.")
     for d in detections:

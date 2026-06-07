@@ -66,9 +66,12 @@ class Visit(Base):
     is_verified     = Column(Boolean, default=False, nullable=False)
     points_awarded  = Column(Integer, default=0, nullable=False)
 
-    __table_args__ = (
-        UniqueConstraint("user_id", "object_id", name="uq_user_object"),
-    )
+    # Премахнато стриктното уникално ограничение, за да позволим многократни
+    # неверифицирани опити за един и същи обект.
+    # Контролът (да има само едно ВЕРИФИЦИРАНО посещение) трябва да се прави в бекенд логиката (main.py)
+    # __table_args__ = (
+    #     UniqueConstraint("user_id", "object_id", name="uq_user_object"),
+    # )
 
     user            = relationship("User",          back_populates="visits")
     tourist_object  = relationship("TouristObject", back_populates="visits")

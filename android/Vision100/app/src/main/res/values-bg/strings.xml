@@ -111,6 +111,11 @@
     <string name="verifying_visit">Проверка на посещението...</string>
     <string name="mock_location_detected">Открита е фалшива локация. Моля, изключете приложенията за симулация на GPS.</string>
     <string name="back">Назад</string>
+    <string name="checkin_timeout_message">Проверката отнема твърде дълго. Не успяхме да потвърдим резултата от тази заявка. Проверете прогреса си по-късно или опитайте отново.</string>
+    <string name="checkin_notification_channel">Резултати от отбелязване</string>
+    <string name="checkin_notification_channel_description">Известия за завършени Smart Check-in проверки.</string>
+    <string name="checkin_notification_success_body">%1$s е потвърден. Печелите %2$d точки.</string>
+    <string name="checkin_notification_problem_title">Отбелязването изисква внимание</string>
 
     <!-- Errors -->
     <string name="error_title">Грешка</string>

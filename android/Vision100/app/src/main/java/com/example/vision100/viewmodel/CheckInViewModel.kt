@@ -10,10 +10,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.vision100.R
 import com.example.vision100.data.CheckInResponse
+import com.example.vision100.data.local.AppDatabase
+import com.example.vision100.data.local.PendingCheckIn
 import com.example.vision100.network.ApiService
 import com.example.vision100.notifications.CheckInNotifier
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import androidx.work.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -28,6 +31,7 @@ import java.io.IOException
 import java.io.File
 import java.io.FileOutputStream
 import java.net.SocketTimeoutException
+import java.util.concurrent.TimeUnit
 
 private const val TAG = "CheckInViewModel"
 private const val CHECK_IN_SERVER_TIMEOUT_MS = 60_000L
@@ -64,12 +68,10 @@ class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
     fun checkMockLocation(context: Context) {
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
         fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-            /*
             if (location?.isFromMockProvider == true) {
                 _isMockLocation.value = true
                 Log.e(TAG, "Mock location detected in lastLocation!")
             }
-            */
             _isLocationChecked.value = true
         }.addOnFailureListener {
             Log.e(TAG, "Failed to get last location for mock check", it)
@@ -78,86 +80,100 @@ class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
     }
 
     @SuppressLint("MissingPermission")
-    fun verifyCheckIn(context: Context, photoUri: Uri) {
+    fun verifyCheckIn(context: Context, photoUri: Uri, isOfflineMode: Boolean = false) {
         if (_isLoading.value) return
 
         val appContext = context.applicationContext
         _isLoading.value = true
         _errorMessage.value = null
         _checkInResult.value = null
-        Log.d(TAG, "Starting Smart Check-in process...")
+        Log.d(TAG, "Starting Smart Check-in process (isOfflineMode=$isOfflineMode)...")
 
         viewModelScope.launch {
             try {
-                Log.d(TAG, "Requesting GPS location...")
                 val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
-                val location = fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null).await()
+                val location = withTimeout(15000L) {
+                    fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null).await()
+                }
                 
                 if (location == null) {
-                    Log.e(TAG, "Failed to obtain GPS location (null)")
+                    Log.e(TAG, "GPS location is null")
                     _isLoading.value = false
                     _errorMessage.value = appContext.getString(R.string.gps_error)
                     return@launch
                 }
 
-                /* 
+                if (isOfflineMode) {
+                    Log.d(TAG, "Offline mode active. Saving locally.")
+                    handleOfflineCheckIn(appContext, photoUri, location.latitude, location.longitude, location.accuracy)
+                    return@launch
+                }
+/*
                 if (location.isFromMockProvider) {
-                    Log.e(TAG, "Mock location detected during verification!")
+                    Log.e(TAG, "Mock location detected!")
                     _isMockLocation.value = true
                     _isLoading.value = false
                     _errorMessage.value = appContext.getString(R.string.mock_location_detected)
                     return@launch
                 }
-                */
-
-                Log.d(TAG, "GPS Location obtained: Lat=${location.latitude}, Lon=${location.longitude}, Acc=${location.accuracy}")
-
-                Log.d(TAG, "Preparing photo file from URI: $photoUri")
+*/
                 val file = uriToFile(appContext, photoUri)
-                Log.d(TAG, "File created at: ${file.absolutePath}, size: ${file.length()} bytes")
                 val requestFile = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
                 val body = MultipartBody.Part.createFormData("photo", file.name, requestFile)
-
                 val lat = location.latitude.toString().toRequestBody("text/plain".toMediaTypeOrNull())
                 val lon = location.longitude.toString().toRequestBody("text/plain".toMediaTypeOrNull())
                 val acc = location.accuracy.toString().toRequestBody("text/plain".toMediaTypeOrNull())
 
-                Log.d(TAG, "Sending multipart request to /api/checkins/verify...")
-                val token = ApiService.getAuthHeader()
+                val token = withTimeout(10000L) { ApiService.getAuthHeader() }
+                
+                if (token.isEmpty()) {
+                    Log.w(TAG, "Token is empty. Falling back to offline storage.")
+                    handleOfflineCheckIn(appContext, photoUri, location.latitude, location.longitude, location.accuracy)
+                    return@launch
+                }
+                
                 val lang = ApiService.getLanguageHeader()
                 
-                val response = withTimeout(CHECK_IN_SERVER_TIMEOUT_MS) {
-                    apiService.verifyCheckIn(token, lang, body, lat, lon, acc)
+                try {
+                    val response = withTimeout(CHECK_IN_SERVER_TIMEOUT_MS) {
+                        apiService.verifyCheckIn(token, lang, body, lat, lon, acc)
+                    }
+                    
+                    Log.i(TAG, "Check-in response: verified=${response.verified}")
+                    if (!response.verified) {
+                        _errorMessage.value = response.reason
+                    } else {
+                        _checkInResult.value = response
+                    }
+                    notifyIfNeeded(appContext, response = response)
+                } catch (e: Exception) {
+                    if (e is IOException || e is TimeoutCancellationException) {
+                        Log.i(TAG, "Network issue. Saving locally. Error: ${e.message}")
+                        handleOfflineCheckIn(appContext, photoUri, location.latitude, location.longitude, location.accuracy)
+                    } else {
+                        throw e
+                    }
                 }
-                
-                Log.i(TAG, "Check-in response received: verified=${response.verified}, reason='${response.reason}'")
-                if (!response.verified) {
-                    _errorMessage.value = response.reason
-                } else {
-                    _checkInResult.value = response
-                }
-                notifyIfNeeded(appContext, response = response)
             } catch (e: TimeoutCancellationException) {
                 val message = appContext.getString(R.string.checkin_timeout_message)
-                Log.e(TAG, "Check-in timed out after ${CHECK_IN_SERVER_TIMEOUT_MS}ms", e)
+                Log.e(TAG, "Check-in timed out", e)
                 _errorMessage.value = message
                 notifyIfNeeded(appContext, message = message)
             } catch (e: HttpException) {
                 val errorMsg = ApiService.parseError(e)
-                Log.e(TAG, "HTTP error during check-in: code=${e.code()}, message='$errorMsg'")
+                Log.e(TAG, "HTTP error: code=${e.code()}, message='$errorMsg'")
                 _errorMessage.value = errorMsg
                 notifyIfNeeded(appContext, message = errorMsg)
             } catch (e: SocketTimeoutException) {
                 val message = appContext.getString(R.string.checkin_timeout_message)
-                Log.e(TAG, "Socket timeout during check-in", e)
+                Log.e(TAG, "Socket timeout", e)
                 _errorMessage.value = message
                 notifyIfNeeded(appContext, message = message)
             } catch (e: CancellationException) {
-                Log.i(TAG, "Check-in verification cancelled")
                 throw e
             } catch (e: IOException) {
                 val errorMsg = ApiService.parseError(e)
-                Log.e(TAG, "Network error during check-in", e)
+                Log.e(TAG, "Network error", e)
                 _errorMessage.value = errorMsg
                 notifyIfNeeded(appContext, message = errorMsg)
             } catch (e: Exception) {
@@ -194,5 +210,63 @@ class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
             }
         }
         return file
+    }
+
+    private suspend fun handleOfflineCheckIn(
+        context: Context,
+        photoUri: Uri,
+        lat: Double,
+        lon: Double,
+        accuracy: Float
+    ) {
+        try {
+            val permanentPath = savePhotoPermanently(context, photoUri)
+            val pendingCheckIn = PendingCheckIn(
+                photoPath = permanentPath,
+                latitude = lat,
+                longitude = lon,
+                accuracy = accuracy
+            )
+
+            val db = AppDatabase.getDatabase(context)
+            db.pendingCheckInDao().insert(pendingCheckIn)
+
+            scheduleOfflineSync(context)
+
+            _errorMessage.value = context.getString(R.string.offline_checkin_saved)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save offline check-in", e)
+            _errorMessage.value = context.getString(R.string.sync_failed, e.localizedMessage)
+        } finally {
+            _isLoading.value = false
+        }
+    }
+
+    private fun savePhotoPermanently(context: Context, cacheUri: Uri): String {
+        val fileName = "checkin_${System.currentTimeMillis()}.jpg"
+        val permanentFile = File(context.filesDir, fileName)
+        context.contentResolver.openInputStream(cacheUri)?.use { input ->
+            FileOutputStream(permanentFile).use { output ->
+                input.copyTo(output)
+            }
+        }
+        return permanentFile.absolutePath
+    }
+
+    private fun scheduleOfflineSync(context: Context) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val syncRequest = OneTimeWorkRequestBuilder<com.example.vision100.worker.CheckInWorker>()
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.MINUTES)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "offline_checkin_sync",
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
+            syncRequest
+        )
     }
 }

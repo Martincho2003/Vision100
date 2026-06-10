@@ -64,6 +64,7 @@ import java.util.*
 fun CheckInScreen(
     viewModel: CheckInViewModel,
     onNavigateBack: () -> Unit,
+    isOffline: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -189,7 +190,7 @@ fun CheckInScreen(
             CameraPreview(
                 onNavigateBack = { requestNavigateBack() },
                 onPhotoCaptured = { uri ->
-                    viewModel.verifyCheckIn(context, uri)
+                    viewModel.verifyCheckIn(context, uri, isOfflineMode = isOffline)
                 }
             )
         }

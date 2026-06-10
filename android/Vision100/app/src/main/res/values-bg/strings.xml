@@ -140,4 +140,6 @@
     <string name="session_expired">Сесията е изтекла. Моля, влезте отново.</string>
     <string name="invalid_name_error">Невалидно име или вече е заето</string>
     <string name="connection_error">Грешка при свързване. Моля, опитайте пак.</string>
+    <string name="working_offline">Приложението работи в офлайн режим.</string>
+    <string name="offline_checkin_saved">Отбелязването е запазено локално. Синхронизация при наличен интернет.</string>
 </resources>

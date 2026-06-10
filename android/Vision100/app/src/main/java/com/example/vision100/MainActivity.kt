@@ -11,14 +11,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.vision100.network.ApiService
 import com.example.vision100.repository.AuthRepository
@@ -37,12 +38,6 @@ class MainActivity : AppCompatActivity() {
         const val PREF_THEME_MODE = "theme_mode"
     }
 
-    private enum class ServerHealthState {
-        Checking,
-        Available,
-        Unavailable
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -53,6 +48,10 @@ class MainActivity : AppCompatActivity() {
 
         enableEdgeToEdge()
         setContent {
+            val mainViewModel: MainViewModel = viewModel { MainViewModel(apiService) }
+            val isOffline by mainViewModel.isOffline.collectAsState()
+            val isCheckingHealth by mainViewModel.isCheckingHealth.collectAsState()
+
             val preferences = remember {
                 getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             }
@@ -67,18 +66,23 @@ class MainActivity : AppCompatActivity() {
             }
 
             Vision100Theme(darkTheme = useDarkTheme) {
-                var serverHealthState by remember { mutableStateOf(ServerHealthState.Checking) }
+                val auth = FirebaseAuth.getInstance()
+                var currentUser by remember { mutableStateOf(auth.currentUser) }
+                val lifecycleOwner = LocalLifecycleOwner.current
 
-                LaunchedEffect(Unit) {
-                    serverHealthState = try {
-                        apiService.checkHealth(ApiService.getLanguageHeader())
-                        ServerHealthState.Available
-                    } catch (e: Exception) {
-                        ServerHealthState.Unavailable
+                DisposableEffect(lifecycleOwner) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_RESUME) {
+                            mainViewModel.checkHealth()
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose {
+                        lifecycleOwner.lifecycle.removeObserver(observer)
                     }
                 }
 
-                if (serverHealthState == ServerHealthState.Checking) {
+                if (isCheckingHealth) {
                     VisionBackground {
                         VisionLoadingState(
                             title = stringResource(R.string.loading_server),
@@ -91,7 +95,7 @@ class MainActivity : AppCompatActivity() {
                     return@Vision100Theme
                 }
 
-                if (serverHealthState == ServerHealthState.Unavailable) {
+                if (isOffline && currentUser == null) {
                     AlertDialog(
                         onDismissRequest = {},
                         title = { Text(stringResource(R.string.error_title)) },
@@ -105,8 +109,6 @@ class MainActivity : AppCompatActivity() {
                     return@Vision100Theme
                 }
 
-                val auth = FirebaseAuth.getInstance()
-                var currentUser by remember { mutableStateOf(auth.currentUser) }
                 var screenState by remember { mutableStateOf("home") }
 
                 DisposableEffect(auth) {
@@ -169,11 +171,17 @@ class MainActivity : AppCompatActivity() {
                                 onNavigateToSettings = { screenState = "settings" },
                                 onNavigateToCheckIn = { screenState = "checkin" },
                                 onNavigateToLeaderboard = { screenState = "leaderboard" },
+                                isOffline = isOffline,
                                 modifier = Modifier.padding(innerPadding)
                             )
                             "checkin" -> {
                                 val checkInViewModel: CheckInViewModel = viewModel { CheckInViewModel(apiService) }
-                                CheckInScreen(viewModel = checkInViewModel, onNavigateBack = { screenState = "home" }, modifier = Modifier.padding(innerPadding))
+                                CheckInScreen(
+                                    viewModel = checkInViewModel, 
+                                    onNavigateBack = { screenState = "home" }, 
+                                    isOffline = isOffline,
+                                    modifier = Modifier.padding(innerPadding)
+                                )
                             }
                             "leaderboard" -> {
                                 val leaderboardViewModel: LeaderboardViewModel = viewModel { LeaderboardViewModel(apiService) }
@@ -190,6 +198,7 @@ class MainActivity : AppCompatActivity() {
                                     onNavigateBack = { screenState = "home" },
                                     onNavigateToHistory = { screenState = "history" },
                                     onLogout = { authRepository.signOut() },
+                                    isOffline = isOffline,
                                     modifier = Modifier.padding(innerPadding)
                                 )
                             }

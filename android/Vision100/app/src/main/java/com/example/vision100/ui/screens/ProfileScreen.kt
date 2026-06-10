@@ -44,6 +44,7 @@ fun ProfileScreen(
     onNavigateBack: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onLogout: () -> Unit,
+    isOffline: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val userData by viewModel.userData
@@ -294,18 +295,21 @@ fun ProfileScreen(
                         )
 
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            ProfileMenuItem(
-                                icon = Icons.AutoMirrored.Filled.ShowChart,
-                                text = stringResource(R.string.my_progress),
-                                onClick = onNavigateToHistory
-                            )
-                            if (canChangePassword) {
+                            if (!isOffline) {
                                 ProfileMenuItem(
-                                    icon = Icons.Default.Lock,
-                                    text = stringResource(R.string.change_password),
-                                    onClick = { showChangePasswordDialog = true }
+                                    icon = Icons.AutoMirrored.Filled.ShowChart,
+                                    text = stringResource(R.string.my_progress),
+                                    onClick = onNavigateToHistory
                                 )
+                                if (canChangePassword) {
+                                    ProfileMenuItem(
+                                        icon = Icons.Default.Lock,
+                                        text = stringResource(R.string.change_password),
+                                        onClick = { showChangePasswordDialog = true }
+                                    )
+                                }
                             }
+
                             ProfileMenuItem(
                                 icon = Icons.AutoMirrored.Filled.ExitToApp,
                                 text = stringResource(R.string.logout),

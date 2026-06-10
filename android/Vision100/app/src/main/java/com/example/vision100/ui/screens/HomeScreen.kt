@@ -34,6 +34,7 @@ fun HomeScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToCheckIn: () -> Unit,
     onNavigateToLeaderboard: () -> Unit,
+    isOffline: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var contentVisible by remember { mutableStateOf(false) }
@@ -49,8 +50,10 @@ fun HomeScreen(
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
-                    IconButton(onClick = onNavigateToProfile) {
-                        Icon(Icons.Default.AccountCircle, contentDescription = "Profile")
+                    if (!isOffline) {
+                        IconButton(onClick = onNavigateToProfile) {
+                            Icon(Icons.Default.AccountCircle, contentDescription = "Profile")
+                        }
                     }
                 }
             )
@@ -116,23 +119,33 @@ fun HomeScreen(
                     FlagAccentBar(height = 4.dp)
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    HomeActionCard(
-                        title = stringResource(R.string.tourist_objects),
-                        body = stringResource(R.string.objects_action_body),
-                        icon = Icons.Default.Map,
-                        accentColor = MaterialTheme.colorScheme.primary,
-                        onClick = onNavigateToObjects
-                    )
+                    if (!isOffline) {
+                        HomeActionCard(
+                            title = stringResource(R.string.tourist_objects),
+                            body = stringResource(R.string.objects_action_body),
+                            icon = Icons.Default.Map,
+                            accentColor = MaterialTheme.colorScheme.primary,
+                            onClick = onNavigateToObjects
+                        )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                    HomeActionCard(
-                        title = stringResource(R.string.leaderboard),
-                        body = stringResource(R.string.leaderboard_action_body),
-                        icon = Icons.Default.EmojiEvents,
-                        accentColor = MaterialTheme.colorScheme.secondary,
-                        onClick = onNavigateToLeaderboard
-                    )
+                        HomeActionCard(
+                            title = stringResource(R.string.leaderboard),
+                            body = stringResource(R.string.leaderboard_action_body),
+                            icon = Icons.Default.EmojiEvents,
+                            accentColor = MaterialTheme.colorScheme.secondary,
+                            onClick = onNavigateToLeaderboard
+                        )
+                    } else {
+                        Text(
+                            text = stringResource(R.string.working_offline),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
                 }
             }
         }

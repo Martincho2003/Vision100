@@ -90,12 +90,9 @@ fun HistoryScreen(
                 listOfNotNull(
                     touristObject?.number,
                     touristObject?.name,
-                    touristObject?.description,
                     touristObject?.region,
                     touristObject?.category,
-                    touristObject?.aiLabels,
-                    visit.visitedAt,
-                    visit.pointsAwarded.toString()
+                    visit.visitedAt
                 ).any { value -> value.contains(query, ignoreCase = true) }
             }
         }

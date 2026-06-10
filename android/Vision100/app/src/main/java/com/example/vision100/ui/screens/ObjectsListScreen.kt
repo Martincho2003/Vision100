@@ -144,10 +144,8 @@ fun ObjectsListScreen(
             val matchesSearch = query.isBlank() || listOfNotNull(
                 obj.number,
                 obj.name,
-                obj.description,
                 obj.region,
                 obj.category,
-                obj.aiLabels
             ).any { value -> value.contains(query, ignoreCase = true) }
 
             val matchesRegion = selectedRegion == null || obj.region?.trim() == selectedRegion

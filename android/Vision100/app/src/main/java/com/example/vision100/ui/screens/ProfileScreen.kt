@@ -336,7 +336,9 @@ private fun ProfileHero(
         Column {
             FlagAccentBar(height = 4.dp)
             Column(
-                modifier = Modifier.padding(18.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Surface(
@@ -363,19 +365,28 @@ private fun ProfileHero(
                 }
 
                 Row(
-                    modifier = Modifier.padding(top = 14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
+                    // Празно пространство за балансиране на иконата за редакция и точно центриране на името
+                    Spacer(modifier = Modifier.width(48.dp))
+                    
                     Text(
                         text = user?.displayName ?: "User",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.weight(1f, fill = false)
+                        modifier = Modifier.weight(1f)
                     )
-                    IconButton(onClick = onEditName) {
+                    
+                    IconButton(
+                        onClick = onEditName,
+                        modifier = Modifier.size(48.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Edit Name",
@@ -389,7 +400,8 @@ private fun ProfileHero(
                     text = user?.email ?: "",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }

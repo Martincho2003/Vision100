@@ -11,6 +11,5 @@ data class TouristObject(
     val category: String?,
     val latitude: Float,
     val longitude: Float,
-    @SerializedName("ai_labels") val aiLabels: String?,
     @SerializedName("is_visited") val isVisited: Int = 0,
 )

@@ -200,7 +200,6 @@ async def verify_check_in(
         logger.info(
             "Check-in rejected by GPS. user_id=%s object_id=%s lat=%s lon=%s",
             current_user.id,
-            object_id,
             latitude,
             longitude,
         )
@@ -268,7 +267,6 @@ async def verify_check_in(
         logger.info(
             "Check-in rejected by AI. user_id=%s object_id=%s best_detection=%s match_score=%s confidence=%s",
             current_user.id,
-            object_id,
             best_match.matched_detection if best_match else None,
             best_match.match_score if best_match else None,
             best_match.ai_confidence if best_match else None,

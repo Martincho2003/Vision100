@@ -126,6 +126,8 @@
     <!-- Errors -->
     <string name="error_title">Грешка</string>
     <string name="ok">ОК</string>
+    <string name="close">Затвори</string>
+    <string name="navigate">Навигация</string>
     <string name="loading_server">Подготвяме Vision100</string>
     <string name="checking_server">Проверяваме връзката със сървъра преди началото.</string>
     <string name="leaderboard_empty">Все още няма данни за класацията.</string>

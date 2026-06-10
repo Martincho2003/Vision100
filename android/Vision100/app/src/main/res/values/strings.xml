@@ -125,6 +125,8 @@
     <!-- Errors -->
     <string name="error_title">Error</string>
     <string name="ok">OK</string>
+    <string name="close">Close</string>
+    <string name="navigate">Navigate</string>
     <string name="loading_server">Preparing Vision100</string>
     <string name="checking_server">Checking server connection before the journey starts.</string>
     <string name="leaderboard_empty">No ranking data yet.</string>

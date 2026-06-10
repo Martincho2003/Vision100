@@ -5,7 +5,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -28,6 +27,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Category
@@ -108,6 +108,7 @@ fun ObjectsListScreen(
     var selectedCategory by remember { mutableStateOf<String?>(null) }
     var selectedVisitStatus by remember { mutableStateOf<VisitStatusFilter?>(null) }
     var viewMode by remember { mutableStateOf(ObjectsViewMode.List) }
+    var selectedObjectForDetails by remember { mutableStateOf<TouristObject?>(null) }
 
     val listState = rememberLazyListState()
     var isFilterVisible by remember { mutableStateOf(true) }
@@ -181,6 +182,17 @@ fun ObjectsListScreen(
     ) { padding ->
         VisionBackground {
             Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+                if (selectedObjectForDetails != null) {
+                    ObjectDetailDialog(
+                        obj = selectedObjectForDetails!!,
+                        onDismiss = { selectedObjectForDetails = null },
+                        onNavigate = { obj ->
+                            openGoogleMaps(context, obj.latitude, obj.longitude, obj.name)
+                            selectedObjectForDetails = null
+                        }
+                    )
+                }
+
                 if (isLoading) {
                     VisionLoadingState(
                         title = stringResource(R.string.object_catalog),
@@ -234,13 +246,16 @@ fun ObjectsListScreen(
                                 ObjectsViewMode.List -> ObjectsList(
                                     objects = filteredObjects,
                                     onObjectClick = { obj ->
-                                        openGoogleMaps(context, obj.latitude, obj.longitude, obj.name)
+                                        selectedObjectForDetails = obj
                                     },
                                     modifier = Modifier.weight(1f).fillMaxWidth(),
                                     state = listState
                                 )
                                 ObjectsViewMode.Map -> ObjectsMap(
                                     objects = filteredObjects,
+                                    onObjectClick = { obj ->
+                                        selectedObjectForDetails = obj
+                                    },
                                     modifier = Modifier.weight(1f).fillMaxWidth()
                                 )
                             }
@@ -494,6 +509,7 @@ private fun ObjectsList(
 @Composable
 private fun ObjectsMap(
     objects: List<TouristObject>,
+    onObjectClick: (TouristObject) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -577,7 +593,7 @@ private fun ObjectsMap(
                     }))
 
                     objects.forEach { obj ->
-                        view.overlays.add(obj.toObjectMarker(view, context))
+                        view.overlays.add(obj.toObjectMarker(view, context, onObjectClick))
                     }
                     view.tag = objectSignature
                 }
@@ -635,7 +651,11 @@ private fun openGoogleMaps(context: Context, lat: Float, lon: Float, label: Stri
     }
 }
 
-private fun TouristObject.toObjectMarker(mapView: MapView, context: Context): Marker {
+private fun TouristObject.toObjectMarker(
+    mapView: MapView,
+    context: Context,
+    onMarkerClick: (TouristObject) -> Unit
+): Marker {
     val obj = this
     return Marker(mapView).apply {
         position = GeoPoint(latitude.toDouble(), longitude.toDouble())
@@ -652,7 +672,7 @@ private fun TouristObject.toObjectMarker(mapView: MapView, context: Context): Ma
                 super.onOpen(item)
                 mView.setOnTouchListener { v, event ->
                     if (event.action == android.view.MotionEvent.ACTION_UP) {
-                        openGoogleMaps(context, obj.latitude, obj.longitude, obj.name)
+                        onMarkerClick(obj)
                         v.performClick()
                     }
                     true
@@ -754,6 +774,68 @@ private fun fetchCurrentLocation(
                 }
             }
         }
+}
+
+@Composable
+private fun ObjectDetailDialog(
+    obj: TouristObject,
+    onDismiss: () -> Unit,
+    onNavigate: (TouristObject) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(
+                onClick = { onNavigate(obj) },
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.navigate))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.close))
+            }
+        },
+        title = {
+            Text(
+                text = "${obj.number}. ${obj.name}",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (!obj.category.isNullOrBlank() || !obj.region.isNullOrBlank()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        obj.region?.let {
+                            FlagChip(
+                                text = it,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        obj.category?.let {
+                            FlagChip(
+                                text = it,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = obj.description ?: stringResource(R.string.no_description_available),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    )
 }
 
 @Composable

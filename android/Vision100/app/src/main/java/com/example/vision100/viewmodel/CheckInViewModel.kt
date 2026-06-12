@@ -68,10 +68,12 @@ class CheckInViewModel(private val apiService: ApiService) : ViewModel() {
     fun checkMockLocation(context: Context) {
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
         fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            /*
             if (location?.isFromMockProvider == true) {
                 _isMockLocation.value = true
                 Log.e(TAG, "Mock location detected in lastLocation!")
             }
+             */
             _isLocationChecked.value = true
         }.addOnFailureListener {
             Log.e(TAG, "Failed to get last location for mock check", it)

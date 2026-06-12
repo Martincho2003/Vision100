@@ -108,8 +108,10 @@ def text_similarity(left: str, right: str) -> float:
         return 1.0
     if left_norm in right_norm or right_norm in left_norm:
         shorter = min(len(left_norm), len(right_norm))
-        longer = max(len(left_norm), len(right_norm))
-        return max(0.82, shorter / longer)
+        longer = max(len(left_norm), len(right_norm)) 
+        if shorter >= 4:
+            return max(0.82, shorter / longer)
+                
     return SequenceMatcher(None, left_norm, right_norm).ratio()
 
 

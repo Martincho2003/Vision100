@@ -1,5 +1,7 @@
 import os
 import uuid
+import asyncio
+import functools
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
@@ -42,6 +44,9 @@ app = FastAPI(
 )
 
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+# Глобален lock за предотвратяване на "database is locked" грешки при паралелни записи в SQLite
+db_write_lock = asyncio.Lock()
 
 @app.get("/health", tags=["System"])
 def health_check(accept_language: Optional[str] = Header(None)):
@@ -214,8 +219,9 @@ async def verify_check_in(
                 photo_url=photo_url_path,
                 is_verified=False,
             )
-            db.add(visit)
-            db.commit()
+            async with db_write_lock:
+                db.add(visit)
+                db.commit()
 
         return schemas.CheckInResponse(
             verified=False,
@@ -229,6 +235,11 @@ async def verify_check_in(
     try:
         logger.info("Sending photo to Vision API for analysis...")
         detections = analyze_image(image_bytes, filename=photo.filename, lat=latitude, lng=longitude)
+        loop = asyncio.get_running_loop()
+        detections = await loop.run_in_executor(
+            None, 
+            functools.partial(analyze_image, image_bytes, filename=photo.filename, lat=latitude, lng=longitude)
+        )
         logger.info("Vision API successfully returned %s preliminary detections.", len(detections))
     except VisionServiceError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=get_text(accept_language, "vision_service_error"))
@@ -249,8 +260,9 @@ async def verify_check_in(
                 photo_url=photo_url_path,
                 is_verified=False,
             )
-            db.add(visit)
-            db.commit()
+            async with db_write_lock:
+                db.add(visit)
+                db.commit()
 
         return schemas.CheckInResponse(
             verified=False,
@@ -285,8 +297,9 @@ async def verify_check_in(
                 ai_matched_label=best_match.matched_detection if best_match else None,
                 is_verified=False,
             )
-            db.add(visit)
-            db.commit()
+            async with db_write_lock:
+                db.add(visit)
+                db.commit()
 
         return schemas.CheckInResponse(
             verified=False,
@@ -345,12 +358,13 @@ async def verify_check_in(
         is_verified=True,
         points_awarded=POINTS_PER_VISIT,
     )
-    db.add(visit)
-
-    current_user.total_points += POINTS_PER_VISIT
-    db.commit()
-    db.refresh(visit)
-    db.refresh(current_user)
+    
+    async with db_write_lock:
+        db.add(visit)
+        current_user.total_points += POINTS_PER_VISIT
+        db.commit()
+        db.refresh(visit)
+        db.refresh(current_user)
 
     logger.info(
         "Check-in verified. user_id=%s object_id=%s points=%s total_points=%s",
@@ -399,7 +413,7 @@ def get_leaderboard(limit: int = 50, db: Session = Depends(get_db)):
 
 
 @app.post("/api/auth/sync", response_model=schemas.UserResponse, tags=["Auth"])
-def sync_user(
+async def sync_user(
     user_data: schemas.UserSync,
     token_data: dict = Depends(verify_firebase_token),
     db: Session = Depends(get_db)
@@ -452,9 +466,10 @@ def sync_user(
         )
         db.add(user)
     
-    db.commit()
-    db.refresh(user)
-    logger.info("Sync completed successfully. user_id=%s display_name=%s last_login=%s", user.id, user.display_name, user.last_login)
+    async with db_write_lock:
+        db.commit()
+        db.refresh(user)
+        logger.info("Sync completed successfully. user_id=%s display_name=%s last_login=%s", user.id, user.display_name, user.last_login)
     
     return user
 
@@ -465,7 +480,7 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
     return current_user
 
 @app.put("/api/users/me/name", response_model=schemas.UserResponse, tags=["Users"])
-def update_username(
+async def update_username(
     name_data: schemas.UserNameUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -483,8 +498,9 @@ def update_username(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This username is already taken.")
         
     current_user.display_name = new_name
-    db.commit()
-    db.refresh(current_user)
-    logger.info("Username updated successfully. user_id=%s new_name=%s", current_user.id, current_user.display_name)
+    async with db_write_lock:
+        db.commit()
+        db.refresh(current_user)
+        logger.info("Username updated successfully. user_id=%s new_name=%s", current_user.id, current_user.display_name)
     
     return current_user

@@ -367,13 +367,15 @@ fun VisitItem(visit: VisitResponse, onPhotoClick: (String) -> Unit) {
 @Composable
 fun PhotoDialog(photoUrl: String, authToken: String?, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val imageRequest = remember(photoUrl, authToken) {
+    val language = ApiService.getLanguageHeader()
+    val imageRequest = remember(photoUrl, authToken, language) {
         ImageRequest.Builder(context)
             .data(photoUrl)
             .apply {
                 if (!authToken.isNullOrEmpty()) {
                     addHeader("Authorization", authToken)
                 }
+                addHeader("Accept-Language", language)
             }
             .build()
     }

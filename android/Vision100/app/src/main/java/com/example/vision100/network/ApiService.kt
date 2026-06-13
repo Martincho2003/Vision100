@@ -7,7 +7,6 @@ import kotlinx.coroutines.tasks.await
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody
-import okhttp3.ResponseBody
 import org.json.JSONObject
 import retrofit2.HttpException
 import retrofit2.Retrofit
@@ -55,13 +54,6 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Header("Accept-Language") language: String
     ): List<LeaderboardUser>
-
-    @GET("api/visits/{visitId}/photo")
-    suspend fun getVisitPhoto(
-        @Header("Authorization") token: String,
-        @Header("Accept-Language") language: String,
-        @Path("visitId") visitId: Int
-    ): ResponseBody
 
     @GET("api/visits/me")
     suspend fun getMyVisits(

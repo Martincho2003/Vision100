@@ -24,11 +24,13 @@ class LeaderboardViewModel(private val apiService: ApiService) : ViewModel() {
         _errorMessage.value = null
         viewModelScope.launch {
             try {
-                _users.value = apiService.getLeaderboard()
+                val token = ApiService.getAuthHeader()
+                val lang = ApiService.getLanguageHeader()
+                _users.value = apiService.getLeaderboard(token, lang)
                 _isLoading.value = false
             } catch (e: Exception) {
                 _isLoading.value = false
-                _errorMessage.value = "Failed to load leaderboard"
+                _errorMessage.value = ApiService.parseError(e)
             }
         }
     }

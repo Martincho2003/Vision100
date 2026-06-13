@@ -20,7 +20,6 @@ from app.vision_service import (
     VisionServiceError,
     analyze_image,
     choose_best_match,
-    distance_meters,
     effective_radius,
     is_ai_match_success,
     nearby_objects,
@@ -45,7 +44,6 @@ app = FastAPI(
 
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
-# Глобален lock за предотвратяване на "database is locked" грешки при паралелни записи в SQLite
 db_write_lock = asyncio.Lock()
 
 @app.get("/health", tags=["System"])
@@ -84,6 +82,7 @@ def get_tourist_objects(
 @app.get("/api/visits/{visit_id}/photo", tags=["Visits"])
 def get_visit_photo(
     visit_id: int, 
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     accept_language: Optional[str] = Header(None)
 ):
@@ -407,7 +406,11 @@ def get_my_visits(
 
 
 @app.get("/api/leaderboard", response_model=List[schemas.LeaderboardUser], tags=["Users"])
-def get_leaderboard(limit: int = 50, db: Session = Depends(get_db)):
+def get_leaderboard(
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     limit = max(1, min(limit, 100))
     return db.query(User).order_by(User.total_points.desc(), User.display_name.asc()).limit(limit).all()
 

@@ -49,12 +49,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.vision100.R
 import com.example.vision100.data.VisitResponse
 import com.example.vision100.network.ApiService
@@ -79,6 +81,7 @@ fun HistoryScreen(
     val errorMessage by viewModel.errorMessage
     var selectedPhotoUrl by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
+    var authToken by remember { mutableStateOf<String?>(null) }
 
     val filteredVisits = remember(visits, searchQuery) {
         val query = searchQuery.trim()
@@ -104,6 +107,7 @@ fun HistoryScreen(
 
     LaunchedEffect(Unit) {
         viewModel.fetchHistory()
+        authToken = ApiService.getAuthHeader()
     }
 
     Scaffold(
@@ -181,7 +185,11 @@ fun HistoryScreen(
     }
 
     selectedPhotoUrl?.let { photoUrl ->
-        PhotoDialog(photoUrl = photoUrl, onDismiss = { selectedPhotoUrl = null })
+        PhotoDialog(
+            photoUrl = photoUrl,
+            authToken = authToken,
+            onDismiss = { selectedPhotoUrl = null }
+        )
     }
 }
 
@@ -357,7 +365,19 @@ fun VisitItem(visit: VisitResponse, onPhotoClick: (String) -> Unit) {
 }
 
 @Composable
-fun PhotoDialog(photoUrl: String, onDismiss: () -> Unit) {
+fun PhotoDialog(photoUrl: String, authToken: String?, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val imageRequest = remember(photoUrl, authToken) {
+        ImageRequest.Builder(context)
+            .data(photoUrl)
+            .apply {
+                if (!authToken.isNullOrEmpty()) {
+                    addHeader("Authorization", authToken)
+                }
+            }
+            .build()
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -367,7 +387,7 @@ fun PhotoDialog(photoUrl: String, onDismiss: () -> Unit) {
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 AsyncImage(
-                    model = photoUrl,
+                    model = imageRequest,
                     contentDescription = "Visit Photo",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit

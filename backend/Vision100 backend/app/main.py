@@ -18,7 +18,7 @@ from app.auth import get_current_user, verify_firebase_token
 from app.translations import get_text, localize_tourist_object, localize_visit
 from app.vision_service import (
     VisionServiceError,
-    analyze_image,
+    google_vision_detections,
     choose_best_match,
     effective_radius,
     is_ai_match_success,
@@ -78,6 +78,19 @@ def get_tourist_objects(
         for obj in objects
     ]
 
+@app.get("/api/visits/me", response_model=List[schemas.VisitResponse], tags=["Visits"])
+def get_my_visits(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    accept_language: Optional[str] = Header(None)
+):
+    visits = (
+        db.query(Visit)
+        .filter(Visit.user_id == current_user.id, Visit.is_verified.is_(True))
+        .order_by(Visit.visited_at.desc())
+        .all()
+    )
+    return [localize_visit(visit, accept_language) for visit in visits]
 
 @app.get("/api/visits/{visit_id}/photo", tags=["Visits"])
 def get_visit_photo(
@@ -202,30 +215,16 @@ async def verify_check_in(
 
     if not candidates:
         logger.info(
-            "Check-in rejected by GPS. user_id=%s object_id=%s lat=%s lon=%s",
+            "Check-in rejected by GPS. user_id=%s lat=%s lon=%s",
             current_user.id,
             latitude,
             longitude,
         )
-        
-        if candidate_for_response:
-            visit = Visit(
-                user_id=current_user.id,
-                object_id=candidate_for_response.id,
-                latitude=latitude,
-                longitude=longitude,
-                gps_accuracy=gps_accuracy,
-                photo_url=photo_url_path,
-                is_verified=False,
-            )
-            async with db_write_lock:
-                db.add(visit)
-                db.commit()
 
         return schemas.CheckInResponse(
             verified=False,
             reason=get_text(accept_language, "gps_outside_radius"),
-            object=localize_tourist_object(candidate_for_response, accept_language) if candidate_for_response else None,
+            object=None,
             total_points=current_user.total_points,
             distance_meters=distance_for_response,
             effective_radius_meters=radius_for_response,
@@ -233,11 +232,10 @@ async def verify_check_in(
 
     try:
         logger.info("Sending photo to Vision API for analysis...")
-        detections = analyze_image(image_bytes, filename=photo.filename, lat=latitude, lng=longitude)
         loop = asyncio.get_running_loop()
         detections = await loop.run_in_executor(
             None, 
-            functools.partial(analyze_image, image_bytes, filename=photo.filename, lat=latitude, lng=longitude)
+            functools.partial(google_vision_detections, image_bytes, lat=latitude, lng=longitude)
         )
         logger.info("Vision API successfully returned %s preliminary detections.", len(detections))
     except VisionServiceError as exc:
@@ -276,7 +274,7 @@ async def verify_check_in(
     best_match = choose_best_match(candidates, detections)
     if best_match is None or not is_ai_match_success(best_match):
         logger.info(
-            "Check-in rejected by AI. user_id=%s object_id=%s best_detection=%s match_score=%s confidence=%s",
+            "Check-in rejected by AI. user_id=%s best_detection=%s match_score=%s confidence=%s",
             current_user.id,
             best_match.matched_detection if best_match else None,
             best_match.match_score if best_match else None,
@@ -389,22 +387,6 @@ async def verify_check_in(
         detections=detection_response,
     )
 
-
-@app.get("/api/visits/me", response_model=List[schemas.VisitResponse], tags=["Visits"])
-def get_my_visits(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    accept_language: Optional[str] = Header(None)
-):
-    visits = (
-        db.query(Visit)
-        .filter(Visit.user_id == current_user.id, Visit.is_verified.is_(True))
-        .order_by(Visit.visited_at.desc())
-        .all()
-    )
-    return [localize_visit(visit, accept_language) for visit in visits]
-
-
 @app.get("/api/leaderboard", response_model=List[schemas.LeaderboardUser], tags=["Users"])
 def get_leaderboard(
     limit: int = 50,
@@ -413,7 +395,6 @@ def get_leaderboard(
 ):
     limit = max(1, min(limit, 100))
     return db.query(User).order_by(User.total_points.desc(), User.display_name.asc()).limit(limit).all()
-
 
 @app.post("/api/auth/sync", response_model=schemas.UserResponse, tags=["Auth"])
 async def sync_user(
@@ -431,8 +412,6 @@ async def sync_user(
     if user:
         logger.info("Existing user found. user_id=%s display_name=%s last_login will be updated", user.id, user.display_name)
         user.last_login = func.now()
-        if user_data.avatar_url:
-            user.avatar_url = user_data.avatar_url
     else:
         requested_name = user_data.display_name.strip() if user_data.display_name else None
         final_name = (requested_name or token_data.get("name", "Unknown User")).strip()
@@ -440,7 +419,6 @@ async def sync_user(
         
         if sign_in_provider == "password":
             if db.query(User).filter(User.display_name == final_name).first():
-                logger.warning("Requested display_name already taken. display_name=%s", final_name)
                 try:
                     from firebase_admin import auth
                     auth.delete_user(uid)
@@ -475,7 +453,6 @@ async def sync_user(
         logger.info("Sync completed successfully. user_id=%s display_name=%s last_login=%s", user.id, user.display_name, user.last_login)
     
     return user
-
 
 @app.get("/api/users/me", response_model=schemas.UserResponse, tags=["Users"])
 def get_current_user_info(current_user: User = Depends(get_current_user)):

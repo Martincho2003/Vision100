@@ -10,13 +10,11 @@ OUTPUT_FILE = "100_nto_bilingual_updated.json"
 def get_coordinates(query):
     url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(query)}&format=json&limit=1"
     
-    # Nominatim изисква персонализиран User-Agent
     req = urllib.request.Request(
         url, 
         headers={'User-Agent': 'Vision100_Geocoding_Script_v2.0 (student_project)'}
     )
     
-    # Игнориране на евентуални SSL грешки в локална среда
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
@@ -32,7 +30,7 @@ def get_coordinates(query):
             print("\n[!] ВНИМАНИЕ: Получихме грешка 429 (Too Many Requests). Сървърът ни блокира временно!")
             print("[!] Изчакваме 60 секунди преди следващ опит...")
             time.sleep(10)
-            return get_coordinates(query) # Опитваме отново след паузата
+            return get_coordinates(query)
         print(f"  [!] HTTP грешка: {e.code}")
     except Exception as e:
         print(f"  [!] Мрежова грешка при заявката: {e}")
@@ -54,10 +52,9 @@ def update_locations():
     print(f"Намерени {len(data)} обекта. Започва търсене на координати...\n")
 
     for i, obj in enumerate(data, 1):
-        name = obj.get("name_bg", "").split(' - ')[0] # Опитваме се да вземем само основното име, ако има тирета
+        name = obj.get("name_bg", "").split(' - ')[0] 
         region = obj.get("region_bg", "")
         
-        # Съставяме заявки - първо по-специфична, ако не стане - по-обща
         queries_to_try = [
             f"{name}, {region}, България",
             f"{name}, България",
@@ -75,23 +72,19 @@ def update_locations():
                 updated_count += 1
                 found = True
                 
-                # Запазваме прогреса веднага, за да не губим данни при спиране
                 with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=4)
                 break
                 
-            # Задължителна пауза от 2 секунди според правилата на Nominatim
             time.sleep(2.0)
             
         if not found:
             not_found_count += 1
             print(f"[НЕ НАМЕРЕН] Обект {i}: '{name}' - запазваме със старите координати.")
             
-            # Запазваме прогреса веднага, дори и да не сме намерили нови
             with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=4)
             
-    # Запазване в НОВ файл, за да не повредим оригинала при грешка
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
         

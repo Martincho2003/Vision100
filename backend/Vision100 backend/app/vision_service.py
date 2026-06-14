@@ -1,7 +1,6 @@
 import json
 import logging
 import math
-import os
 import re
 from dataclasses import dataclass
 from difflib import SequenceMatcher
@@ -12,18 +11,15 @@ from database.models import TouristObject
 
 logger = logging.getLogger(__name__)
 
-AI_PROVIDER = "google"
 MIN_AI_CONFIDENCE = 0.55
 MIN_TEXT_MATCH = 0.72
 MAX_GPS_ACCURACY_BONUS_METERS = 100.0
-
 
 @dataclass(frozen=True)
 class Detection:
     label: str
     score: float
     source: str
-
 
 @dataclass(frozen=True)
 class ObjectMatch:
@@ -39,10 +35,8 @@ class ObjectMatch:
     def combined_score(self) -> float:
         return self.ai_confidence * self.match_score
 
-
 class VisionServiceError(RuntimeError):
     pass
-
 
 def distance_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     radius = 6_371_000.0
@@ -57,12 +51,10 @@ def distance_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float
     )
     return 2 * radius * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
-
 def effective_radius(tourist_object: TouristObject, gps_accuracy: Optional[float]) -> float:
     accuracy_bonus = min(max(gps_accuracy or 0.0, 0.0), MAX_GPS_ACCURACY_BONUS_METERS)
     base_radius = 500.0
     return base_radius + accuracy_bonus
-
 
 def object_terms(tourist_object: TouristObject) -> list[str]:
     terms = [
@@ -91,13 +83,12 @@ def object_terms(tourist_object: TouristObject) -> list[str]:
 
     return list(dict.fromkeys(split_terms))
 
-
 def normalize_text(value: str) -> str:
     value = value.lower()
     value = value.replace("&", " and ")
+    value = re.sub(r'\bst\.?\b', 'saint', value)
     value = re.sub(r"[^a-z0-9\u0400-\u04ff]+", " ", value)
     return re.sub(r"\s+", " ", value).strip()
-
 
 def text_similarity(left: str, right: str) -> float:
     left_norm = normalize_text(left)
@@ -112,24 +103,17 @@ def text_similarity(left: str, right: str) -> float:
         if shorter >= 4:
             return max(0.82, shorter / longer)
                 
-    return SequenceMatcher(None, left_norm, right_norm).ratio()
+    seq_ratio = SequenceMatcher(None, left_norm, right_norm).ratio()
+    
+    left_words = set(left_norm.split())
+    right_words = set(right_norm.split())
+    overlap_ratio = 0.0
+    if left_words and right_words:
+        overlap_ratio = len(left_words.intersection(right_words)) / min(len(left_words), len(right_words))
+        
+    return max(seq_ratio, overlap_ratio)
 
-
-def analyze_image(image_bytes: bytes, filename: Optional[str] = None, lat: Optional[float] = None, lng: Optional[float] = None) -> list[Detection]:
-    if AI_PROVIDER == "mock":
-        return _mock_detections(filename)
-    return _google_vision_detections(image_bytes, lat, lng)
-
-
-def _mock_detections(filename: Optional[str]) -> list[Detection]:
-    stem = os.path.splitext(os.path.basename(filename or ""))[0]
-    label = stem.replace("_", " ").replace("-", " ").strip()
-    if not label:
-        label = "Rila Monastery"
-    return [Detection(label=label, score=0.99, source="mock")]
-
-
-def _google_vision_detections(image_bytes: bytes, lat: Optional[float] = None, lng: Optional[float] = None) -> list[Detection]:
+def google_vision_detections(image_bytes: bytes, lat: Optional[float] = None, lng: Optional[float] = None) -> list[Detection]:
     try:
         from google.cloud import vision
     except ImportError as exc:

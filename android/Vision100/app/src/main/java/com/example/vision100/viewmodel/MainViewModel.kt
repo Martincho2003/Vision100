@@ -19,7 +19,9 @@ class MainViewModel(private val apiService: ApiService) : ViewModel() {
         viewModelScope.launch {
             _isCheckingHealth.value = true
             try {
-                apiService.checkHealth(ApiService.getLanguageHeader())
+                kotlinx.coroutines.withTimeout(5000L) {
+                    apiService.checkHealth(ApiService.getLanguageHeader())
+                }
                 _isOffline.value = false
             } catch (e: Exception) {
                 Log.d("MainViewModel", "Server unreachable: ${e.message}")

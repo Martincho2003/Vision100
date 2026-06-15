@@ -226,9 +226,17 @@ fun CheckInScreen(
         }
 
         errorMessage?.let { error ->
+            val offlineMsg = stringResource(R.string.offline_checkin_saved)
+            val isOfflineMessage = error.trim() == offlineMsg.trim()
+            
             AlertDialog(
                 onDismissRequest = { viewModel.clearResult() },
-                title = { Text(stringResource(R.string.error_title)) },
+                title = { 
+                    Text(
+                        if (isOfflineMessage) stringResource(R.string.app_name) 
+                        else stringResource(R.string.error_title)
+                    ) 
+                },
                 text = { Text(error) },
                 confirmButton = {
                     Button(onClick = { 

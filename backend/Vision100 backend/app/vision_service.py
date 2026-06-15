@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 MIN_AI_CONFIDENCE = 0.55
 MIN_TEXT_MATCH = 0.72
-MAX_GPS_ACCURACY_BONUS_METERS = 100.0
+MAX_GPS_ACCURACY_BONUS_METERS = 200.0
 
 @dataclass(frozen=True)
 class Detection:
@@ -179,7 +179,6 @@ def google_vision_detections(image_bytes: bytes, lat: Optional[float] = None, ln
 
     return _dedupe_detections(detections)
 
-
 def _dedupe_detections(detections: Iterable[Detection]) -> list[Detection]:
     best_by_label: dict[str, Detection] = {}
     for detection in detections:
@@ -190,7 +189,6 @@ def _dedupe_detections(detections: Iterable[Detection]) -> list[Detection]:
         if current is None or detection.score > current.score:
             best_by_label[key] = detection
     return sorted(best_by_label.values(), key=lambda item: item.score, reverse=True)
-
 
 def nearby_objects(
     tourist_objects: Iterable[TouristObject],
@@ -204,7 +202,6 @@ def nearby_objects(
         if distance <= effective_radius(tourist_object, gps_accuracy):
             nearby.append((tourist_object, distance))
     return sorted(nearby, key=lambda item: item[1])
-
 
 def match_object(
     tourist_object: TouristObject,
@@ -237,7 +234,6 @@ def match_object(
         detection_source=best_source,
     )
 
-
 def choose_best_match(
     candidates: list[tuple[TouristObject, float]],
     detections: list[Detection],
@@ -245,9 +241,17 @@ def choose_best_match(
     if not candidates:
         return None
 
+    non_text_detections = [d for d in detections if d.source != "text"]
+    
+    if non_text_detections:
+        non_text_matches = [match_object(tourist_object, distance, non_text_detections) for tourist_object, distance in candidates]
+        best_non_text = max(non_text_matches, key=lambda item: (item.combined_score, item.match_score, item.ai_confidence, -item.distance_meters))
+        
+        if is_ai_match_success(best_non_text):
+            return best_non_text
+
     matches = [match_object(tourist_object, distance, detections) for tourist_object, distance in candidates]
     return max(matches, key=lambda item: (item.combined_score, item.match_score, item.ai_confidence, -item.distance_meters))
-
 
 def is_ai_match_success(match: ObjectMatch) -> bool:
     return match.ai_confidence >= MIN_AI_CONFIDENCE and match.match_score >= MIN_TEXT_MATCH

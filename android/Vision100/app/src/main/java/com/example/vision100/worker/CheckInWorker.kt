@@ -45,11 +45,12 @@ class CheckInWorker(
                 val lat = item.latitude.toString().toRequestBody("text/plain".toMediaTypeOrNull())
                 val lon = item.longitude.toString().toRequestBody("text/plain".toMediaTypeOrNull())
                 val acc = item.accuracy.toString().toRequestBody("text/plain".toMediaTypeOrNull())
+                val ts = item.timestamp.toString().toRequestBody("text/plain".toMediaTypeOrNull())
 
                 val response = apiService.verifyCheckIn(
                     authHeader,
                     langHeader,
-                    body, lat, lon, acc
+                    body, lat, lon, acc, ts
                 )
 
                 dao.deleteById(item.id)

@@ -141,7 +141,7 @@ fun HomeScreen(
                         Text(
                             text = stringResource(R.string.working_offline),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(8.dp)
                         )

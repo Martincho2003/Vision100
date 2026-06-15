@@ -98,7 +98,7 @@ class MainActivity : AppCompatActivity() {
                 if (isOffline && currentUser == null) {
                     AlertDialog(
                         onDismissRequest = {},
-                        title = { Text(stringResource(R.string.error_title)) },
+                        title = { Text(stringResource(R.string.working_offline)) },
                         text = { Text(stringResource(R.string.server_problem_exit_message)) },
                         confirmButton = {
                             Button(onClick = { finishAffinity() }) {

@@ -121,6 +121,8 @@
     <string name="checkin_notification_channel_description">Notifications for completed Smart Check-in verifications.</string>
     <string name="checkin_notification_success_body">%1$s was verified. You earned %2$d points.</string>
     <string name="checkin_notification_problem_title">Check-in needs attention</string>
+    <string name="working_offline">App is currently in offline mode.</string>
+    <string name="offline_checkin_saved">Check-in saved locally. Will sync when online.</string>
 
     <!-- Errors -->
     <string name="error_title">Error</string>
@@ -139,6 +141,5 @@
     <string name="session_expired">Session expired. Please log in again.</string>
     <string name="invalid_name_error">Invalid name or already taken</string>
     <string name="connection_error">Connection error. Please try again.</string>
-    <string name="working_offline">App is currently in offline mode.</string>
-    <string name="offline_checkin_saved">Check-in saved locally. Will sync when online.</string>
+
 </resources>

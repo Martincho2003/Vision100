@@ -69,7 +69,8 @@ interface ApiService {
         @Part photo: MultipartBody.Part,
         @Part("latitude") latitude: RequestBody,
         @Part("longitude") longitude: RequestBody,
-        @Part("gps_accuracy") accuracy: RequestBody?
+        @Part("gps_accuracy") accuracy: RequestBody?,
+        @Part("timestamp") timestamp: RequestBody? = null
     ): CheckInResponse
 
     companion object {

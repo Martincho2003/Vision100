@@ -10,6 +10,7 @@ import logging
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from typing import List, Optional
+from datetime import datetime
 
 from database.connection import get_db, create_tables
 from database.models import TouristObject, User, Visit
@@ -122,6 +123,7 @@ async def verify_check_in(
     latitude: float = Form(...),
     longitude: float = Form(...),
     gps_accuracy: Optional[float] = Form(None),
+    timestamp: Optional[int] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     accept_language: Optional[str] = Header(None),
@@ -166,53 +168,6 @@ async def verify_check_in(
 
     logger.info("GPS candidates found: %s", len(candidates))
 
-    if candidate_for_response:
-        verified_visit = db.query(Visit).filter(
-            Visit.user_id == current_user.id,
-            Visit.object_id == candidate_for_response.id,
-            Visit.is_verified == True
-        ).first()
-
-        if verified_visit:
-            try:
-                os.remove(file_path)
-            except OSError:
-                pass
-                
-            return schemas.CheckInResponse(
-                verified=True,
-                reason=get_text(accept_language, "already_verified"),
-                object=localize_tourist_object(candidate_for_response, accept_language),
-                visit=localize_visit(verified_visit, accept_language),
-                already_visited=True,
-                points_awarded=0,
-                total_points=current_user.total_points,
-                distance_meters=distance_for_response,
-                effective_radius_meters=radius_for_response,
-                ai_confidence=verified_visit.ai_confidence,
-                ai_match_score=None,
-                ai_matched_label=verified_visit.ai_matched_label,
-                ai_detected_label=verified_visit.ai_matched_label,
-                detections=[],
-            )
-
-        unverified_count = db.query(Visit).filter(
-            Visit.user_id == current_user.id,
-            Visit.object_id == candidate_for_response.id,
-            Visit.is_verified == False
-        ).count()
-
-        if unverified_count >= 5:
-            try:
-                os.remove(file_path)
-            except OSError:
-                pass
-                
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=get_text(accept_language, "max_attempts_reached")
-            )
-
     if not candidates:
         logger.info(
             "Check-in rejected by GPS. user_id=%s lat=%s lon=%s",
@@ -246,146 +201,120 @@ async def verify_check_in(
         for item in detections[:10]
     ]
 
-    if not detections:
-        if candidate_for_response:
-            visit = Visit(
-                user_id=current_user.id,
-                object_id=candidate_for_response.id,
-                latitude=latitude,
-                longitude=longitude,
-                gps_accuracy=gps_accuracy,
-                photo_url=photo_url_path,
-                is_verified=False,
-            )
-            async with db_write_lock:
-                db.add(visit)
-                db.commit()
+    best_match = choose_best_match(candidates, detections) if detections else None
+    target_object = best_match.tourist_object if best_match else candidate_for_response
+    is_success = bool(detections and best_match and is_ai_match_success(best_match))
 
+    async with db_write_lock:
+        verified_visit = db.query(Visit).filter(
+            Visit.user_id == current_user.id,
+            Visit.object_id == target_object.id,
+            Visit.is_verified == True
+        ).first()
+
+        if verified_visit:
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+            return schemas.CheckInResponse(
+                verified=True,
+                reason=get_text(accept_language, "already_verified"),
+                object=localize_tourist_object(target_object, accept_language),
+                visit=localize_visit(verified_visit, accept_language),
+                already_visited=True,
+                points_awarded=0,
+                total_points=current_user.total_points,
+                distance_meters=best_match.distance_meters if best_match else distance_for_response,
+                effective_radius_meters=effective_radius(target_object, gps_accuracy),
+                ai_confidence=best_match.ai_confidence if best_match else None,
+                ai_match_score=best_match.match_score if best_match else None,
+                ai_matched_label=best_match.matched_label if best_match else None,
+                ai_detected_label=best_match.matched_detection if best_match else None,
+                detections=detection_response,
+            )
+
+        unverified_count = db.query(Visit).filter(
+            Visit.user_id == current_user.id,
+            Visit.object_id == target_object.id,
+            Visit.is_verified == False
+        ).count()
+
+        if unverified_count >= 5:
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=get_text(accept_language, "max_attempts_reached")
+            )
+
+        visit_time = datetime.fromtimestamp(timestamp / 1000.0) if timestamp else func.now()
+
+        visit = Visit(
+            user_id=current_user.id,
+            object_id=target_object.id,
+            latitude=latitude,
+            longitude=longitude,
+            gps_accuracy=gps_accuracy,
+            visited_at=visit_time,
+            photo_url=photo_url_path,
+            ai_confidence=best_match.ai_confidence if best_match else None,
+            ai_matched_label=best_match.matched_detection if best_match else None,
+            is_verified=is_success,
+            points_awarded=POINTS_PER_VISIT if is_success else 0,
+        )
+
+        db.add(visit)
+        if is_success:
+            current_user.total_points += POINTS_PER_VISIT
+        db.commit()
+        db.refresh(visit)
+        if is_success:
+            db.refresh(current_user)
+
+    if not detections:
         return schemas.CheckInResponse(
             verified=False,
             reason=get_text(accept_language, "ai_no_useful_labels"),
-            object=localize_tourist_object(candidate_for_response, accept_language) if candidate_for_response else None,
+            object=localize_tourist_object(target_object, accept_language),
             total_points=current_user.total_points,
             distance_meters=distance_for_response,
             effective_radius_meters=radius_for_response,
             detections=detection_response,
         )
-
-    best_match = choose_best_match(candidates, detections)
-    if best_match is None or not is_ai_match_success(best_match):
-        logger.info(
-            "Check-in rejected by AI. user_id=%s best_detection=%s match_score=%s confidence=%s",
-            current_user.id,
-            best_match.matched_detection if best_match else None,
-            best_match.match_score if best_match else None,
-            best_match.ai_confidence if best_match else None,
-        )
-        t_obj = best_match.tourist_object if best_match else candidate_for_response
-        
-        if t_obj:
-            visit = Visit(
-                user_id=current_user.id,
-                object_id=t_obj.id,
-                latitude=latitude,
-                longitude=longitude,
-                gps_accuracy=gps_accuracy,
-                photo_url=photo_url_path,
-                ai_confidence=best_match.ai_confidence if best_match else None,
-                ai_matched_label=best_match.matched_detection if best_match else None,
-                is_verified=False,
-            )
-            async with db_write_lock:
-                db.add(visit)
-                db.commit()
-
+    elif not is_success:
         return schemas.CheckInResponse(
             verified=False,
             reason=get_text(accept_language, "ai_not_match"),
-            object=localize_tourist_object(t_obj, accept_language) if t_obj else None,
-            total_points=current_user.total_points,
-            distance_meters=best_match.distance_meters if best_match else distance_for_response,
-            effective_radius_meters=(
-                effective_radius(best_match.tourist_object, gps_accuracy)
-                if best_match
-                else radius_for_response
-            ),
-            ai_confidence=best_match.ai_confidence if best_match else None,
-            ai_match_score=best_match.match_score if best_match else None,
-            ai_matched_label=best_match.matched_label if best_match else None,
-            ai_detected_label=best_match.matched_detection if best_match else None,
-            detections=detection_response,
-        )
-
-    tourist_object = best_match.tourist_object
-    
-    verified_visit = (
-        db.query(Visit)
-        .filter(Visit.user_id == current_user.id, Visit.object_id == tourist_object.id, Visit.is_verified == True)
-        .first()
-    )
-
-    if verified_visit:
-        logger.info("Check-in verified: user_id=%s already has points for object_id=%s.", current_user.id, tourist_object.id)
-        return schemas.CheckInResponse(
-            verified=True,
-            reason=get_text(accept_language, "already_verified"),
-            object=localize_tourist_object(tourist_object, accept_language),
-            visit=localize_visit(verified_visit, accept_language),
-            already_visited=True,
-            points_awarded=0,
+            object=localize_tourist_object(target_object, accept_language),
             total_points=current_user.total_points,
             distance_meters=best_match.distance_meters,
-            effective_radius_meters=effective_radius(tourist_object, gps_accuracy),
+            effective_radius_meters=effective_radius(target_object, gps_accuracy),
             ai_confidence=best_match.ai_confidence,
             ai_match_score=best_match.match_score,
             ai_matched_label=best_match.matched_label,
             ai_detected_label=best_match.matched_detection,
             detections=detection_response,
         )
-
-    visit = Visit(
-        user_id=current_user.id,
-        object_id=tourist_object.id,
-        latitude=latitude,
-        longitude=longitude,
-        gps_accuracy=gps_accuracy,
-        ai_confidence=best_match.ai_confidence,
-        ai_matched_label=best_match.matched_detection,
-        photo_url=photo_url_path,
-        is_verified=True,
-        points_awarded=POINTS_PER_VISIT,
-    )
-    
-    async with db_write_lock:
-        db.add(visit)
-        current_user.total_points += POINTS_PER_VISIT
-        db.commit()
-        db.refresh(visit)
-        db.refresh(current_user)
-
-    logger.info(
-        "Check-in verified. user_id=%s object_id=%s points=%s total_points=%s",
-        current_user.id,
-        tourist_object.id,
-        POINTS_PER_VISIT,
-        current_user.total_points,
-    )
-    return schemas.CheckInResponse(
-        verified=True,
-        reason=get_text(accept_language, "visit_verified"),
-        object=localize_tourist_object(tourist_object, accept_language),
-        visit=localize_visit(visit, accept_language),
-        already_visited=False,
-        points_awarded=POINTS_PER_VISIT,
-        total_points=current_user.total_points,
-        distance_meters=best_match.distance_meters,
-        effective_radius_meters=effective_radius(tourist_object, gps_accuracy),
-        ai_confidence=best_match.ai_confidence,
-        ai_match_score=best_match.match_score,
-        ai_matched_label=best_match.matched_label,
-        ai_detected_label=best_match.matched_detection,
-        detections=detection_response,
-    )
+    else:
+        return schemas.CheckInResponse(
+            verified=True,
+            reason=get_text(accept_language, "visit_verified"),
+            object=localize_tourist_object(target_object, accept_language),
+            visit=localize_visit(visit, accept_language),
+            already_visited=False,
+            points_awarded=POINTS_PER_VISIT,
+            total_points=current_user.total_points,
+            distance_meters=best_match.distance_meters,
+            effective_radius_meters=effective_radius(target_object, gps_accuracy),
+            ai_confidence=best_match.ai_confidence,
+            ai_match_score=best_match.match_score,
+            ai_matched_label=best_match.matched_label,
+            ai_detected_label=best_match.matched_detection,
+            detections=detection_response,
+        )
 
 @app.get("/api/leaderboard", response_model=List[schemas.LeaderboardUser], tags=["Users"])
 def get_leaderboard(

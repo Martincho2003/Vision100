@@ -1,6 +1,7 @@
 package com.example.vision100.notifications
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -46,6 +47,7 @@ object CheckInNotifier {
         )
     }
 
+    @SuppressLint("MissingPermission")
     private fun show(context: Context, title: String, body: String) {
         if (!canPostNotifications(context)) return
 

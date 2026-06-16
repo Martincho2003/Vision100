@@ -35,7 +35,7 @@ import com.example.vision100.ui.components.VisionLogo
 import com.example.vision100.viewmodel.AuthViewModel
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import com.google.firebase.auth.GoogleAuthProvider
+
 import kotlinx.coroutines.launch
 
 @Composable
@@ -84,8 +84,8 @@ fun RegisterScreen(
                 val credential = result.credential
                 if (credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
                     val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-                    val firebaseCredential = GoogleAuthProvider.getCredential(googleIdTokenCredential.idToken, null)
-                    viewModel.signInWithCredential(firebaseCredential)
+                    
+                    viewModel.signInWithGoogle(googleIdTokenCredential.idToken)
                 } else {
                     viewModel.setError(googleSignInFailedMessage)
                 }

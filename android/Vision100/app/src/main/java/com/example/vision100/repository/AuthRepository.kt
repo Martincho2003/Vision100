@@ -5,6 +5,8 @@ import com.example.vision100.data.UserResponse
 import com.example.vision100.network.ApiService
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.userProfileChangeRequest
 import kotlinx.coroutines.tasks.await
 
 class AuthRepository(private val apiService: ApiService) {
@@ -27,6 +29,33 @@ class AuthRepository(private val apiService: ApiService) {
 
         user.reauthenticate(credential).await()
         user.updatePassword(newPassword).await()
+    }
+
+    suspend fun loginWithEmail(email: String, pass: String) {
+        auth.signInWithEmailAndPassword(email, pass).await()
+    }
+
+    suspend fun loginWithGoogle(idToken: String) {
+        val credential = GoogleAuthProvider.getCredential(idToken, null)
+        auth.signInWithCredential(credential).await()
+    }
+
+    suspend fun register(username: String, email: String, pass: String) {
+        auth.createUserWithEmailAndPassword(email, pass).await()
+        val user = getCurrentUser()
+        val profileUpdates = userProfileChangeRequest {
+            displayName = username
+        }
+        user?.updateProfile(profileUpdates)?.await()
+    }
+
+    suspend fun sendPasswordResetEmail(email: String) {
+        auth.sendPasswordResetEmail(email).await()
+    }
+
+    suspend fun deleteCurrentUser() {
+        getCurrentUser()?.delete()?.await()
+        signOut()
     }
 
     suspend fun checkServerHealth() {

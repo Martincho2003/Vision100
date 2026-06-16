@@ -138,7 +138,7 @@ async def verify_check_in(
     if not image_bytes:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=get_text(accept_language, "photo_empty"))
 
-    logger.info("Check-in initiated. user_id=%s lat=%s lon=%s image_size_bytes=%s", current_user.id, latitude, longitude, len(image_bytes))
+    logger.info("Check-in initiated. user_id=%s lat=%s lon=%s acc=% image_size_bytes=%s", current_user.id, latitude, longitude, gps_accuracy, len(image_bytes))
 
     if len(image_bytes) > MAX_IMAGE_BYTES:
         raise HTTPException(
@@ -170,10 +170,11 @@ async def verify_check_in(
 
     if not candidates:
         logger.info(
-            "Check-in rejected by GPS. user_id=%s lat=%s lon=%s",
+            "Check-in rejected by GPS. user_id=%s lat=%s lon=%s acc=%s",
             current_user.id,
             latitude,
             longitude,
+            gps_accuracy
         )
 
         return schemas.CheckInResponse(

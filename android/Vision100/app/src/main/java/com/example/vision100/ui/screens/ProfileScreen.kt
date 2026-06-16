@@ -375,7 +375,6 @@ private fun ProfileHero(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    // Празно пространство за балансиране на иконата за редакция и точно центриране на името
                     Spacer(modifier = Modifier.width(48.dp))
                     
                     Text(

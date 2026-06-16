@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterListOff
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material3.Card
@@ -39,6 +40,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -368,6 +371,8 @@ fun VisitItem(visit: VisitResponse, onPhotoClick: (String) -> Unit) {
 fun PhotoDialog(photoUrl: String, authToken: String?, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val language = ApiService.getLanguageHeader()
+    var manualRotation by remember { mutableStateOf(0f) }
+    val animatedRotation by animateFloatAsState(targetValue = manualRotation)
     val imageRequest = remember(photoUrl, authToken, language) {
         ImageRequest.Builder(context)
             .data(photoUrl)
@@ -377,6 +382,19 @@ fun PhotoDialog(photoUrl: String, authToken: String?, onDismiss: () -> Unit) {
                 }
                 addHeader("Accept-Language", language)
             }
+            .transformations(
+                object : coil.transform.Transformation {
+                    override val cacheKey: String = "auto_rotate_landscape"
+                    override suspend fun transform(input: android.graphics.Bitmap, size: coil.size.Size): android.graphics.Bitmap {
+                        if (input.width > input.height) {
+                            val matrix = android.graphics.Matrix()
+                            matrix.postRotate(90f)
+                            return android.graphics.Bitmap.createBitmap(input, 0, 0, input.width, input.height, matrix, true)
+                        }
+                        return input
+                    }
+                }
+            )
             .build()
     }
 
@@ -391,21 +409,37 @@ fun PhotoDialog(photoUrl: String, authToken: String?, onDismiss: () -> Unit) {
                 AsyncImage(
                     model = imageRequest,
                     contentDescription = "Visit Photo",
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .rotate(animatedRotation),
                     contentScale = ContentScale.Fit
                 )
-                IconButton(
-                    onClick = onDismiss,
+                Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .background(Color.Black.copy(alpha = 0.3f), CircleShape)
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = Color.White
-                    )
+                    IconButton(
+                        onClick = { manualRotation += 90f },
+                        modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.RotateRight,
+                            contentDescription = "Rotate",
+                            tint = Color.White
+                        )
+                    }
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color.White
+                        )
+                    }
                 }
             }
         }

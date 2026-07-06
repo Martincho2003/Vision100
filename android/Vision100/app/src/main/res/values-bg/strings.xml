@@ -124,6 +124,8 @@
     <string name="checkin_notification_problem_title">Отбелязването изисква внимание</string>
     <string name="working_offline">Приложението работи в офлайн режим.</string>
     <string name="offline_checkin_saved">Отбелязването е запазено локално. Синхронизация при наличен интернет.</string>
+    <string name="checkin_request_sent_title">Заявката е изпратена</string>
+    <string name="checkin_request_sent_body">Офлайн заявката за отбелязване е изпратена към сървъра.</string>
 
     <!-- Errors -->
     <string name="error_title">Грешка</string>

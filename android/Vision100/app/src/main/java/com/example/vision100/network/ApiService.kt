@@ -75,7 +75,7 @@ interface ApiService {
 
     companion object {
         private const val TAG = "ApiService"
-        private const val BASE_URL = "http://192.168.0.3:8000/"
+        private const val BASE_URL = "http://10.221.213.226:8000/"
 
         fun create(): ApiService {
             val okHttpClient = OkHttpClient.Builder()

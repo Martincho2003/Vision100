@@ -24,6 +24,7 @@ class CheckInWorker(
         val apiService = ApiService.create()
 
         val pendingList = dao.getAllPending()
+        Log.d("CheckInWorker", "Current moment: Found ${pendingList.size} records to send.")
         if (pendingList.isEmpty()) return Result.success()
 
         var allSuccess = true
@@ -53,6 +54,8 @@ class CheckInWorker(
                     body, lat, lon, acc, ts
                 )
 
+                CheckInNotifier.showRequestSent(applicationContext)
+
                 dao.deleteById(item.id)
                 if (file.exists()) {
                     file.delete()
@@ -69,12 +72,22 @@ class CheckInWorker(
                 val file = File(item.photoPath)
                 if (file.exists()) file.delete()
                 CheckInNotifier.showProblem(applicationContext, ApiService.parseError(e))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("CheckInWorker", "Sync failed for item ${item.id}", e)
                 allSuccess = false
             }
         }
 
-        return if (allSuccess) Result.success() else Result.retry()
+        if (!allSuccess) {
+            val attempt = runAttemptCount
+            val nextRetryMins = 15 * (1 shl attempt)
+            Log.d("CheckInWorker", "Not all records were sent successfully. Returning Result.retry(). Expected next attempt in approximately $nextRetryMins minutes.")
+            return Result.retry()
+        }
+        
+        Log.d("CheckInWorker", "All pending records were successfully sent.")
+        return Result.success()
     }
 }

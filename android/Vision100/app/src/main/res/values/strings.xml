@@ -123,6 +123,8 @@
     <string name="checkin_notification_problem_title">Check-in needs attention</string>
     <string name="working_offline">App is currently in offline mode.</string>
     <string name="offline_checkin_saved">Check-in saved locally. Will sync when online.</string>
+    <string name="checkin_request_sent_title">Request Sent</string>
+    <string name="checkin_request_sent_body">Offline check-in request sent to server.</string>
 
     <!-- Errors -->
     <string name="error_title">Error</string>

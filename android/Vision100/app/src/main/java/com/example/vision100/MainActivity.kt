@@ -73,7 +73,7 @@ class MainActivity : AppCompatActivity() {
                 DisposableEffect(lifecycleOwner) {
                     val observer = LifecycleEventObserver { _, event ->
                         if (event == Lifecycle.Event.ON_RESUME) {
-                            mainViewModel.checkHealth()
+                            mainViewModel.checkHealth(this@MainActivity.applicationContext)
                         }
                     }
                     lifecycleOwner.lifecycle.addObserver(observer)

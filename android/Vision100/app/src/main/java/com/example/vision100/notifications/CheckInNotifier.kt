@@ -18,6 +18,7 @@ import com.example.vision100.data.CheckInResponse
 
 private const val CHECK_IN_CHANNEL_ID = "check_in_results"
 private const val CHECK_IN_NOTIFICATION_ID = 1001
+private const val CHECK_IN_SENT_NOTIFICATION_ID = 1002
 
 object CheckInNotifier {
     fun showResult(context: Context, result: CheckInResponse) {
@@ -47,8 +48,17 @@ object CheckInNotifier {
         )
     }
 
+    fun showRequestSent(context: Context) {
+        show(
+            context = context,
+            title = context.getString(R.string.checkin_request_sent_title),
+            body = context.getString(R.string.checkin_request_sent_body),
+            notificationId = CHECK_IN_SENT_NOTIFICATION_ID
+        )
+    }
+
     @SuppressLint("MissingPermission")
-    private fun show(context: Context, title: String, body: String) {
+    private fun show(context: Context, title: String, body: String, notificationId: Int = CHECK_IN_NOTIFICATION_ID) {
         if (!canPostNotifications(context)) return
 
         ensureChannel(context)
@@ -73,7 +83,7 @@ object CheckInNotifier {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
 
-        NotificationManagerCompat.from(context).notify(CHECK_IN_NOTIFICATION_ID, notification)
+        NotificationManagerCompat.from(context).notify(notificationId, notification)
     }
 
     private fun canPostNotifications(context: Context): Boolean {

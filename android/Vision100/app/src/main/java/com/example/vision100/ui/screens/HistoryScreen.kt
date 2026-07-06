@@ -282,7 +282,6 @@ fun VisitItem(visit: VisitResponse, onPhotoClick: (String) -> Unit) {
 
     try {
         val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
-        inputFormat.timeZone = java.util.TimeZone.getTimeZone("UTC")
         val parsedDate = inputFormat.parse(dateText)
 
         if (parsedDate != null) {

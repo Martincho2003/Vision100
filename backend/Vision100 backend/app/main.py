@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from typing import List, Optional
 from datetime import datetime
-
 from database.connection import get_db, create_tables
 from database.models import TouristObject, User, Visit
 from app import schemas
